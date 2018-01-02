@@ -1,1 +1,450 @@
 http://www.cd-jackson.com/index.php/zwave/zwave-device-database/zwave-device-database-guide
+
+grymt mycket bra info:
+https://github.com/yepher/RaZBerry
+
+Cancel == Resend request
+
+https://github.com/openhab/org.openhab.binding.zwave
+
+http://www.cd-jackson.com/index.php/zwave/zwave-device-database/zwave-device-database-guide
+
+http://wiki.linuxmce.org/index.php/ZWave_API
+
+https://github.com/oberasoftware/zwave
+https://github.com/whizzosoftware/WZWave
+
+
+            // Do noting... just wait for the retransmission timer to kick-in
+            // CheckRetransmission(false);
+            // CAN frame received - peer dropped a data frame transmitted by us
+
+     case FrameReceiveState.FRS_LENGTH:
+          if (buffer < MIN_FRAME_SIZE || buffer > MAX_FRAME_SIZE)
+          {
+            parserState = FrameReceiveState.FRS_SOF_HUNT;
+
+                    case FrameReceiveState.FRS_TYPE:
+          currentDataFrame.Type = (DataFrame.FrameType)buffer;
+          if( currentDataFrame.Type == DataFrame.FrameType.Request ||
+            currentDataFrame.Type == DataFrame.FrameType.Response )
+          {
+            parserState = FrameReceiveState.FRS_COMMAND;
+          }
+          else
+          {
+            parserState = FrameReceiveState.FRS_SOF_HUNT;
+          }
+
+          skicka NAK om checksum inte stämmer.
+Starta om och leta efter SOF om inte längd eller command-type är rimliga.
+
+        /// <summary>
+        /// Data frame command IDs
+        /// </summary>
+        ///
+        public enum CommandType : int
+        {
+            /// <summary>
+            ///
+            /// </summary>
+            None=0x00,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdSerialApiGetInitData=0x02,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdSerialApiApplNodeInformation=0x03,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdApplicationCommandHandler=0x04,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveGetControllerCapabilities=0x05,
+            // SERIALAPI VER. 4 added START
+            /// <summary>
+            ///
+            /// </summary>
+            CmdSerialApiSetTimeouts=0x06,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdSerialApiGetCapabilities=0x07,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdSerialApiSoftReset=0x08,
+            // SERIALAPI VER. 4 added END
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveSetRFReceiveMode=0x10,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveSetSleepMode=0x11,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveSendNodeInformation=0x12,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveSendData=0x13,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveSendDataMulti=0x14,
+            /// <summary>
+            ///
+            /// </summary>
+            // CMD_ZWaveGET_VERSION = 0x15,
+            CmdZWaveGetVersion=0x15,
+            // SERIALAPI VER. 4 added START
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveSendDataAbort=0x16,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveRFPowerLevelSet=0x17,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveSendDataMeta=0x18,
+            // SERIALAPI VER. 4 added END
+            /// <summary>
+            ///
+            /// </summary>
+            CmdMemoryGetId=0x20,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdMemoryGetByte=0x21,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdMemoryPutByte=0x22,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdMemoryGetBuffer=0x23,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdMemoryPutBuffer=0x24,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdClockSet=0x30,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdClockGet=0x31,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdClockCompare=0x32,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdRtcTimerCreate=0x33,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdRtcTimerRead=0x34,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdRtcTimerDelete=0x35,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdRtcTimerCall=0x36,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveGetNodeProtocolInfo=0x41,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveSetDefault=0x42,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveReplicationCommandComplete=0x44,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveReplicationSendData=0x45,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveAssignReturnRoute=0x46,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveDeleteReturnRoute=0x47,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveRequestNodeNeighborUpdate=0x48,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdApplicationControllerUpdate=0x49,
+            /// Slave now also has the Update functionality
+            ///      CMD_APPLICATION_UPDATE              = 0x49,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveAddNodeToNetwork=0x4a,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveRemoveNodeFromNetwork=0x4b,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveCreateNewPrimary=0x4c,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveControllerChange=0x4d,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveSetLearnMode=0x50,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveAssignSucReturnRoute=0x51,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveEnableSuc=0x52,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveRequestNetworkUpdate=0x53,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveSetSucNodeId=0x54,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveDeleteSucReturnRoute=0x55,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveGetSucNodeId=0x56,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveSendSucId=0x57,
+
+            /// <summary>
+            /// Rediscovery needed call
+            /// </summary>
+            CmdZWaveRediscoveryNeeded=0x59,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveRequestNodeInfo=0x60,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveRemoveFailedNodeId=0x61,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveIsFailedNode=0x62,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveReplaceFailedNode=0x63,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdTimerStart=0x70,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdTimerRestart=0x71,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdTimerCancel=0x72,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdTimerCall=0x73,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdGetRoutingTableLine=0x80,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdGetTXCounter=0x81,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdResetTXCounter=0x82,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdStoreNodeInfo=0x83,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdStoreHomeId=0x84,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdLockRouteResponse=0x90,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveSendDataRouteDemo=0x91,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdSerialApiTest=0x95,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdSerialApiSlaveNodeInfo=0xa0,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdApplicationSlaveCommandHandler=0xa1,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveSendSlaveNodeInfo=0xa2,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveSendSlaveData=0xa3,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveSetSlaveLearnMode=0xa4,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveGetVirtualNodes=0xa5,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveIsVirtualNode=0xa6,
+            /// <summary>
+            ///
+            /// </summary>
+            CmdZWaveSetPromiscuousMode=0xd0
+        };
+
+
+private const int DEFAULT_TIMEOUT = 10000; // How long in ms to wait for an response
+        obs! olika, 5, 10 s.
+
+checka efter publicerade paket! samma som föregående => ignorera.
+
+    // ---- Note ----
+    // Sequence numbers are appended to the data frame at the _last_ position in the payload,
+    // just before the checksum byte.
+    // Not all requests use sequence numbers
+    // The response from the ZW-module sets the sequence number at the _first_ position in
+    // the payload, just after the command ID
+    private const byte MIN_SEQUENCE_NUMBER = 1;
+    private const byte MAX_SEQUENCE_NUMBER = 127;
+    private byte sequenceNumber = MIN_SEQUENCE_NUMBER;
+
+    TRANSPORT LAYER (serial) => FRAME LAYER (cehcksum, ack/nak) => SESSION LAYER (sequence number, match request/response) => APPLICATION LAYER
+obs. APPLICATION LAYER == hålla rätt på noder och nätverkets hälsa, ovanpå detta finns ytterligare ett lager
+som typ skickar on/off och läser av statusrapporter från sensorer osv.
+
+Kan motsatsen gälla, att vi får emot request-frames med en sequence???
+
+Sätt timestamp på när vi tar emot framesen.
+
+skillnad på frame och packet? frame är lågnivå, packet själva innehållet?
+
+        /// Checks if a given byte command ID is supported by embedded moule
+        /// </summary>
+        /// <param name="CommandId">id number to check</param>
+        /// <returns>true if supported, false if not</returns>
+        public bool IsSupportedSerialCmd(byte CommandId)
+        {
+            return serialCapabilityMask.ZWaveNodeMaskNodeIn(CommandId);
+
+
+      /// </summary>
+        public byte[] ZWaveSerialApiSetTimeout(byte acknowledgeTimeout, byte timeout)
+        {returns old ack-timeout and byte-timeout
+
+            DataPacket[] res = new DataPacket[2]; // We are receiving 2 responses...
+            DataPacket req = new DataPacket();
+            req.AddPayload(nodeId);
+            req.AddPayload((byte)data.Length);
+            req.AddPayload(data);
+            req.AddPayload((byte)txOptions);
+            TXStatus rc = sessionLayer.RequestWithMultipleResponses(DataFrame.CommandType.CmdZWaveSendData, req, ref res, true, timeout);
+            if (rc == TXStatus.CompleteOk)
+            {
+                return (TXStatus)res[1].GetPayload()[0];
+            }
+            else
+            {
+                return rc;
+            }
+
+
+Ett bra dbus-protokoll ska antagligen supporta flera olika controllers.
+gör så här: varje enhet har en adress som är controller:id eller nät:id.
+
+
+# wait max 5 seconds on reply to request.
+# checksum: räkna ut: sätt till 0, gör xor över hela, skriv resultatet
+# kolla: räkna xor över hela inkl checksum, då ska det bli 0. el 0xff?
+#kallas LRC using XOR.
+
+#dcb.fDtrControl = (byte) CommAPI.DTRControlFlows.ENABLE; // DTR flow control type
+
+
+
+# eply=0x15) - FUNC_ID_ZW_GET_VERSION: 0x01, 0x03, 0x00, 0x15, 0xe9
+# 2017-01-02 00:33:48.446 Detail, contrlr,   Received: 0x01, 0x10, 0x01, 0x15, 0x5a, 0x2d, 0x57, 0x61, 0x76, 0x65, 0x20, 0x34, 0x2e, 0x30, 0x35, 0x00, 0x01, 0x97
+# version string + controller-type ("library")
+#"Z-Wave 4.05\0" + 0x01
+
+
+
+#define FUNC_ID_ZW_GET_VERSION							0x15
+
+#define REQUEST											0x00
+#define RESPONSE										0x01
+
+#define SOF												0x01
+#define ACK												0x06
+#define NAK												0x15
+#define CAN												0x18
+
+#m_buffer[0] = SOF;
+#m_buffer[1] = 0; // Length
+#m_buffer[2] = _msgType;
+#m_buffer[3] = _function;
+
+#checksum = 0xff;
+#for (uint32 i=1; i < m_length; ++i ){
+#    checksum ^= m_buffer[i];
+#}
+#m_buffer[m_length + +] = checksum;
+

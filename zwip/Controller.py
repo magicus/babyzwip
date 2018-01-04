@@ -12,6 +12,12 @@ REQUEST = 0x00
 RESPONSE = 0x01
 
 FUNC_ID_ZW_GET_VERSION = 0x15
+FUNC_ID_ZW_MEMORY_GET_ID = 0x20
+FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES = 0x05
+FUNC_ID_SERIAL_API_GET_CAPABILITIES = 0x07
+FUNC_ID_ZW_GET_SUC_NODE_ID = 0x56 #
+FUNC_ID_ZW_GET_VIRTUAL_NODES = 0xA5
+FUNC_ID_SERIAL_API_GET_INIT_DATA = 0x02
 
 
 class FrameProtocol(serial.threaded.Protocol):
@@ -23,6 +29,7 @@ class FrameProtocol(serial.threaded.Protocol):
         self.in_packet = False
         self.transport = None
         self.state = self.State.Open
+        self.wanted_length = 0
 
     def connection_made(self, transport):
         """Store transport"""
@@ -30,38 +37,64 @@ class FrameProtocol(serial.threaded.Protocol):
 
     def connection_lost(self, exc):
         """Forget transport"""
+        print("connection lost!")
         self.transport = None
         self.in_packet = False
         del self.packet[:]
         self.state = self.State.Open
+        self.wanted_length = 0
         super().connection_lost(exc)
 
     def data_received(self, data):
-        """Find data enclosed in START/STOP, call handle_packet"""
+        print("here")
         for byte in serial.iterbytes(data):
-            if self.state == self.state.Open:
-                if byte == ACK:
-                    self.handle_packet([ACK])
-                if byte == NAK:
-                    self.handle_packet([ACK])
-            if byte == self.START:
-                self.in_packet = True
-            elif byte == self.STOP:
-                self.in_packet = False
-                self.handle_packet(bytes(self.packet)) # make read-only copy
-                del self.packet[:]
-            elif self.in_packet:
+            intval = int.from_bytes(byte, "big")  # network byte order
+
+            if self.state == self.State.Open:
+                if intval == ACK:
+                    self.handle_simple_packet([ACK])
+                elif intval == NAK:
+                    self.handle_simple_packet([ACK])
+                elif intval == CAN:
+                    self.handle_simple_packet([CAN])
+                elif intval == SOF:
+                    self.state = self.State.WantLength
+                    self.packet.extend(byte)
+                    # FIXME: set timeout for this operation?
+                else:
+                    self.handle_bad_data(byte)
+            elif self.state == self.State.WantLength:
+                self.wanted_length = intval
                 self.packet.extend(byte)
-            else:
-                self.handle_out_of_packet_data(byte)
+                self.state = self.State.WantData
+                # FIXME: timeout?
+            elif self.state == self.State.WantData:
+                self.packet.extend(byte)
+                if len(self.packet) == self.wanted_length+2:
+                    self.handle_packet(self.packet)
+                    self.state = self.State.Open
+                    self.wanted_length = 0
+                    self.packet = bytearray()
+
+    def handle_simple_packet(self, packet):
+        """Process packets - to be overridden by subclassing"""
+        # raise NotImplementedError('please implement functionality in handle_packet')
+        print("handling simple packet: {}".format(packet))
 
     def handle_packet(self, packet):
         """Process packets - to be overridden by subclassing"""
-        raise NotImplementedError('please implement functionality in handle_packet')
+        # raise NotImplementedError('please implement functionality in handle_packet')
+        print("handling packet: {}".format(packet))
+        self.write(bytearray([ACK]))
+        frame = Frame.parse(packet)
+        print("got frame: {}".format(frame))
 
-    def handle_out_of_packet_data(self, data):
-        """Process data that is received outside of packets"""
-        pass
+    def handle_bad_data(self, data):
+        print("got bad data: {}".format(data))
+        self.write(bytearray([NAK]))
+
+    def write(self, data):
+        self.transport.write(data)
 
 
 class InvalidFrame(Exception):
@@ -80,6 +113,7 @@ class Frame:
             if frame_bytes[0] != SOF:
                 raise InvalidFrame('No SOF at beginning')
 
+            print("len bytes = {}, info {}".format(len(frame_bytes), frame_bytes[1]))
             if frame_bytes[1] != len(frame_bytes)-2:
                 raise InvalidFrame('Length mismatch')
 
@@ -101,6 +135,10 @@ class Frame:
         for b in frame_bytes:
             checksum ^= b
         return checksum
+
+    def __str__(self):
+        type_str = "REQUEST" if self.frame_type == 0 else "RESPONSE"
+        return "<Frame[{}:{}]: {}>".format(type_str, self.function, bytearray(self.data))
 
     def as_bytearray(self):
         # The first 0 will be replaced by length, the last 0 with checksum
@@ -196,31 +234,66 @@ class Controller:
 
 
 def main():
+
+    import time
+
+    port = locate_usb_controller()
+    usb = UsbController(port)
+
+
+    serialport = usb._serial
+    print("serial {}".format(serialport))
+    #usb.write(frame.as_bytearray())
+
+    # alternative usage
+    t = serial.threaded.ReaderThread(serialport, FrameProtocol)
+    t.start()
+    transport, protocol = t.connect()
+
+    frame = Frame(REQUEST, FUNC_ID_ZW_GET_VERSION)
+    print(frame.as_bytearray())
+    print(frame)
+    protocol.write(frame.as_bytearray())
+
+    time.sleep(2)
+    print("writing second")
+    frame = Frame(REQUEST, FUNC_ID_ZW_MEMORY_GET_ID)
+    print(frame.as_bytearray())
+    print(frame)
+    protocol.write(frame.as_bytearray())
+
+    time.sleep(2)
+    print("writing second")
+    frame = Frame(REQUEST, FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES)
+    print(frame.as_bytearray())
+    print(frame)
+    protocol.write(frame.as_bytearray())
+    time.sleep(20)
+    t.close()
+
+
+    ###
+
+    frame = Frame(REQUEST, FUNC_ID_ZW_GET_VERSION)
+    print(frame.as_bytearray())
+
     interface = FakeController()
     controller = Controller(interface)
     msg = controller.next_msg()
     print("Message: %s" % msg)
     # frame = Frame.build_frame(REQUEST, FUNC_ID_ZW_GET_VERSION)
     frame = Frame(REQUEST, FUNC_ID_ZW_GET_VERSION)
+    print("frame1")
     print(frame.as_bytearray())
     frame2 = Frame.parse(frame.as_bytearray())
     ba2 = frame2.as_bytearray()
+    print("frame2")
     print(ba2)
     frame3 = Frame.parse(bytearray([0x01, 0x03, 0x00, 0x15, 0xe9]))
     ba3 = frame3.as_bytearray()
+    print("frame1")
     print(ba3)
     print(repr(frame3))
-    #exit()
-    port = locate_usb_controller()
-    print("got port: {}".format(port))
-    usb = UsbController(port)
-    # initString = bytearray([0x01, 0x03, 0x00, 0x15, 0xe9])
-    usb.write(frame.as_bytearray())
-    data = usb.read()
-    while data:
-        print(data)
-        data = usb.read()
-    usb.close()
 
 if __name__ == '__main__':
     main()

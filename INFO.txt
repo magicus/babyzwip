@@ -448,3 +448,30 @@ gör så här: varje enhet har en adress som är controller:id eller nät:id.
 #}
 #m_buffer[m_length + +] = checksum;
 
+ * A ZWave serial message frame is made up as follows
+ * Byte 0 : SOF (Start of Frame) 0x01
+ * Byte 1 : Length of frame - number of bytes to follow
+ * Byte 2 : Request (0x00) or Response (0x01)
+ * Byte 3 : Message Class (see SerialMessageClass)
+ * Byte 4+: Message Class data                             >> Message Payload
+ * Byte x : Last byte is checksum
+
+void Controller::PlayInitSequence
+(
+	Driver* _driver
+)
+{
+	_driver->SendMsg( new Msg( "FUNC_ID_ZW_GET_VERSION", 0xff, REQUEST, FUNC_ID_ZW_GET_VERSION, false ), Driver::MsgQueue_Command );
+	_driver->SendMsg( new Msg( "FUNC_ID_ZW_MEMORY_GET_ID", 0xff, REQUEST, FUNC_ID_ZW_MEMORY_GET_ID, false ), Driver::MsgQueue_Command );
+	_driver->SendMsg( new Msg( "FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES", 0xff, REQUEST, FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES, false ), Driver::MsgQueue_Command );
+	_driver->SendMsg( new Msg( "FUNC_ID_SERIAL_API_GET_CAPABILITIES", 0xff, REQUEST, FUNC_ID_SERIAL_API_GET_CAPABILITIES, false ), Driver::MsgQueue_Command );
+	_driver->SendMsg( new Msg( "FUNC_ID_ZW_GET_SUC_NODE_ID", 0xff, REQUEST, FUNC_ID_ZW_GET_SUC_NODE_ID, false ), Driver::MsgQueue_Command );
+	// FUNC_ID_ZW_GET_VIRTUAL_NODES & FUNC_ID_SERIAL_API_GET_INIT_DATA has moved into the handler for FUNC_ID_SERIAL_API_GET_CAPABILITIES
+}
+#define FUNC_ID_ZW_MEMORY_GET_ID						0x20
+#define FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES			0x05
+#define FUNC_ID_SERIAL_API_GET_CAPABILITIES				0x07
+#define FUNC_ID_ZW_GET_SUC_NODE_ID						0x56	// Try to retrieve a Static Update Controller node id (zero if no SUC present)
+
+#define FUNC_ID_ZW_GET_VIRTUAL_NODES					0xA5	// Return all virtual nodes
+#define FUNC_ID_SERIAL_API_GET_INIT_DATA				0x02

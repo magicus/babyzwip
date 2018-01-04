@@ -46,7 +46,6 @@ class FrameProtocol(serial.threaded.Protocol):
         super().connection_lost(exc)
 
     def data_received(self, data):
-        print("here")
         for byte in serial.iterbytes(data):
             intval = int.from_bytes(byte, "big")  # network byte order
 
@@ -84,7 +83,6 @@ class FrameProtocol(serial.threaded.Protocol):
     def handle_packet(self, packet):
         """Process packets - to be overridden by subclassing"""
         # raise NotImplementedError('please implement functionality in handle_packet')
-        print("handling packet: {}".format(packet))
         self.write(bytearray([ACK]))
         frame = Frame.parse(packet)
         print("got frame: {}".format(frame))
@@ -107,13 +105,19 @@ class Frame:
         self.function = function
         self.data = data if data else []
 
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+
+    def __str__(self):
+        type_str = "REQUEST" if self.frame_type == 0 else "RESPONSE"
+        return "<Frame[{}:{}]: {}>".format(type_str, self.function, bytearray(self.data))
+
     @classmethod
     def parse(cls, frame_bytes):
         try:
             if frame_bytes[0] != SOF:
                 raise InvalidFrame('No SOF at beginning')
 
-            print("len bytes = {}, info {}".format(len(frame_bytes), frame_bytes[1]))
             if frame_bytes[1] != len(frame_bytes)-2:
                 raise InvalidFrame('Length mismatch')
 
@@ -135,10 +139,6 @@ class Frame:
         for b in frame_bytes:
             checksum ^= b
         return checksum
-
-    def __str__(self):
-        type_str = "REQUEST" if self.frame_type == 0 else "RESPONSE"
-        return "<Frame[{}:{}]: {}>".format(type_str, self.function, bytearray(self.data))
 
     def as_bytearray(self):
         # The first 0 will be replaced by length, the last 0 with checksum
@@ -281,19 +281,6 @@ def main():
     controller = Controller(interface)
     msg = controller.next_msg()
     print("Message: %s" % msg)
-    # frame = Frame.build_frame(REQUEST, FUNC_ID_ZW_GET_VERSION)
-    frame = Frame(REQUEST, FUNC_ID_ZW_GET_VERSION)
-    print("frame1")
-    print(frame.as_bytearray())
-    frame2 = Frame.parse(frame.as_bytearray())
-    ba2 = frame2.as_bytearray()
-    print("frame2")
-    print(ba2)
-    frame3 = Frame.parse(bytearray([0x01, 0x03, 0x00, 0x15, 0xe9]))
-    ba3 = frame3.as_bytearray()
-    print("frame1")
-    print(ba3)
-    print(repr(frame3))
 
 if __name__ == '__main__':
     main()

@@ -81,45 +81,7 @@ class Frame:
                 raise InvalidFrame('No SOF at beginning')
 
             if frame_bytes[1] != len(frame_bytes)-2:
-                raise
-# wait max 5 seconds on reply to request.
-# checksum: räkna ut: sätt till 0, gör xor över hela, skriv resultatet
-# kolla: räkna xor över hela inkl checksum, då ska det bli 0. el 0xff?
-#kallas LRC using XOR.
-
-#dcb.fDtrControl = (byte) CommAPI.DTRControlFlows.ENABLE; // DTR flow control type
-
-
-
-# eply=0x15) - FUNC_ID_ZW_GET_VERSION: 0x01, 0x03, 0x00, 0x15, 0xe9
-# 2017-01-02 00:33:48.446 Detail, contrlr,   Received: 0x01, 0x10, 0x01, 0x15, 0x5a, 0x2d, 0x57, 0x61, 0x76, 0x65, 0x20, 0x34, 0x2e, 0x30, 0x35, 0x00, 0x01, 0x97
-# version string + controller-type ("library")
-#"Z-Wave 4.05\0" + 0x01
-
-
-
-#define FUNC_ID_ZW_GET_VERSION							0x15
-
-#define REQUEST											0x00
-#define RESPONSE										0x01
-
-#define SOF												0x01
-#define ACK												0x06
-#define NAK												0x15
-#define CAN												0x18
-
-#m_buffer[0] = SOF;
-#m_buffer[1] = 0; // Length
-#m_buffer[2] = _msgType;
-#m_buffer[3] = _function;
-
-#checksum = 0xff;
-#for (uint32 i=1; i < m_length; ++i ){
-#    checksum ^= m_buffer[i];
-#}
-#m_buffer[m_length + +] = checksum;
-
-InvalidFrame('Length mismatch')
+                raise InvalidFrame('Length mismatch')
 
             checksum = cls.calc_checksum(frame_bytes[1:])
             if checksum != 0:

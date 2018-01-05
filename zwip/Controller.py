@@ -37,7 +37,7 @@ class FrameProtocol(serial.threaded.Protocol):
 
     def connection_lost(self, exc):
         """Forget transport"""
-        print("connection lost!")
+        print("connection lost! {}".format(exc))
         self.transport = None
         self.in_packet = False
         del self.packet[:]
@@ -78,7 +78,7 @@ class FrameProtocol(serial.threaded.Protocol):
     def handle_simple_packet(self, packet):
         """Process packets - to be overridden by subclassing"""
         # raise NotImplementedError('please implement functionality in handle_packet')
-        print("handling simple packet: {}".format(packet))
+        print("got simple packet: {}".format(packet))
 
     def handle_packet(self, packet):
         """Process packets - to be overridden by subclassing"""
@@ -94,6 +94,9 @@ class FrameProtocol(serial.threaded.Protocol):
     def write(self, data):
         self.transport.write(data)
 
+    def write_frame(self, frame):
+        self.write(frame.as_bytearray())
+        print("sent frame: {}".format(frame))
 
 class InvalidFrame(Exception):
     pass
@@ -238,49 +241,34 @@ def main():
     import time
 
     port = locate_usb_controller()
-    usb = UsbController(port)
-
-
-    serialport = usb._serial
-    print("serial {}".format(serialport))
-    #usb.write(frame.as_bytearray())
-
-    # alternative usage
+    serialport = serial.serial_for_url(port, baudrate=115200, timeout=3)
+    print("opened: {}".format(serialport))
     t = serial.threaded.ReaderThread(serialport, FrameProtocol)
     t.start()
     transport, protocol = t.connect()
 
     frame = Frame(REQUEST, FUNC_ID_ZW_GET_VERSION)
-    print(frame.as_bytearray())
-    print(frame)
-    protocol.write(frame.as_bytearray())
+    protocol.write_frame(frame)
 
-    time.sleep(2)
-    print("writing second")
+    time.sleep(1)
     frame = Frame(REQUEST, FUNC_ID_ZW_MEMORY_GET_ID)
-    print(frame.as_bytearray())
-    print(frame)
-    protocol.write(frame.as_bytearray())
+    protocol.write_frame(frame)
 
-    time.sleep(2)
-    print("writing second")
+    time.sleep(1)
     frame = Frame(REQUEST, FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES)
-    print(frame.as_bytearray())
-    print(frame)
-    protocol.write(frame.as_bytearray())
-    time.sleep(20)
+    protocol.write_frame(frame)
+
+    time.sleep(1)
+    frame = Frame(REQUEST, FUNC_ID_SERIAL_API_GET_CAPABILITIES)
+    protocol.write_frame(frame)
+
+    time.sleep(1)
+    frame = Frame(REQUEST, FUNC_ID_ZW_GET_SUC_NODE_ID)
+    protocol.write_frame(frame)
+
+    time.sleep(3)
     t.close()
-
-
-    ###
-
-    frame = Frame(REQUEST, FUNC_ID_ZW_GET_VERSION)
-    print(frame.as_bytearray())
-
-    interface = FakeController()
-    controller = Controller(interface)
-    msg = controller.next_msg()
-    print("Message: %s" % msg)
+    serialport.close()
 
 if __name__ == '__main__':
     main()

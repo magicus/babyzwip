@@ -1,45 +1,21 @@
-from distutils.core import setup
+# Always prefer setuptools over distutils
+from setuptools import setup, find_packages
+# To use a consistent encoding
+from codecs import open
+from os import path
 
 setup(
     name='babyzwip',
     version='0.1',
-    packages=['venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip.req',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip.vcs',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip.utils',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip.compat',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip.models',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.distlib',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.distlib._backport',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.colorama',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.html5lib',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.html5lib.trie',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.html5lib.filters',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.html5lib.serializer',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.html5lib.treewalkers',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.html5lib.treeadapters',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.html5lib.treebuilders',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.lockfile',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.progress',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.requests',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.requests.packages',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.requests.packages.chardet',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.requests.packages.urllib3',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.requests.packages.urllib3.util',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.requests.packages.urllib3.contrib',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.requests.packages.urllib3.packages',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.requests.packages.urllib3.packages.ssl_match_hostname',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.packaging',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor._markerlib',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.cachecontrol',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.cachecontrol.caches',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip._vendor.pkg_resources',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip.commands',
-              'venv.lib.python3.5.site-packages.pip-7.1.0-py3.5.egg.pip.operations', 'zwip'],
-    url='',
-    license='',
+    description='Z-Wave In Python',
+    url='https://github.com/magicus/babyzwip',
     author='Magnus Ihse Bursie',
     author_email='mag@icus.se',
-    description=''
+    license='GPL3',
+
+    packages=find_packages(exclude=['tests']),
+
+    install_requires=['pyserial'],
+    setup_requires=['pytest-runner'],
+    tests_require=['pytest'],
 )

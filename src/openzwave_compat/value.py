@@ -2,7 +2,7 @@
 Compatibility layer with python-openzwave
 """
 
-from zwip.openzwave_compat.object import ZWaveObject
+from openzwave_compat import ZWaveObject
 
 class ZWaveValue(ZWaveObject):
     def __init__(self, value_id, network=None, parent=None):

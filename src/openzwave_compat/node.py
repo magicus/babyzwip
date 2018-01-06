@@ -2,10 +2,10 @@
 Compatibility layer with python-openzwave
 """
 
-from zwip.openzwave_compat.object import ZWaveObject
-from zwip.openzwave_compat.command import ZWaveNodeBasic, ZWaveNodeSwitch
-from zwip.openzwave_compat.command import ZWaveNodeSensor, ZWaveNodeThermostat
-from zwip.openzwave_compat.command import ZWaveNodeSecurity, ZWaveNodeDoorLock
+from openzwave_compat import ZWaveObject
+from openzwave_compat import ZWaveNodeBasic, ZWaveNodeSwitch
+from openzwave_compat import ZWaveNodeSensor, ZWaveNodeThermostat
+from openzwave_compat import ZWaveNodeSecurity, ZWaveNodeDoorLock
 
 class ZWaveNode(ZWaveObject,
                 ZWaveNodeBasic, ZWaveNodeSwitch,

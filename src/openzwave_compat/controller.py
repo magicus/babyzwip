@@ -2,7 +2,7 @@
 Compatibility layer with python-openzwave
 """
 
-from zwip.openzwave_compat.object import ZWaveObject, deprecated
+from openzwave_compat import ZWaveObject, deprecated
 
 class ZWaveController(ZWaveObject):
     #@deprecated

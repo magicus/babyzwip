@@ -2,10 +2,9 @@
 Compatibility layer with python-openzwave
 """
 
-from zwip.openzwave_compat.object import ZWaveObject
+from openzwave_compat import ZWaveObject
 
 # Set default logging handler to avoid "No handler found" warnings.
-import logging
 
 class ZWaveScene(ZWaveObject):
 

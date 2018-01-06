@@ -2,8 +2,8 @@
 Compatibility layer with python-openzwave
 """
 
-from zwip.openzwave_compat.object import ZWaveObject
-from zwip.openzwave_compat.singleton import Singleton
+from openzwave_compat import ZWaveObject
+from openzwave_compat import Singleton
 
 class ZWaveNetwork(ZWaveObject):
 

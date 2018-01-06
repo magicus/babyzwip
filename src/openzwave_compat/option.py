@@ -2,7 +2,7 @@
 Compatibility layer with python-openzwave
 """
 
-from zwip.openzwave_compat.singleton import Singleton
+from openzwave_compat import Singleton
 
 class ZWaveOption(object):
     def __init__(self, device=None, config_path=None, user_path=None, cmd_line=None):

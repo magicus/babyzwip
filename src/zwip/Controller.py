@@ -1,6 +1,7 @@
 import socketserver
 import struct
 import threading
+from queue import Queue
 
 import serial
 import serial.tools.list_ports
@@ -11,17 +12,32 @@ ACK = 0x06
 NAK = 0x15
 CAN = 0x18
 
+frame_type_str = {
+    SOF: "SOF",
+    ACK: "ACK",
+    NAK: "NAK",
+    CAN: "CAN"
+}
+
 REQUEST = 0x00
 RESPONSE = 0x01
 
-FUNC_ID_ZW_GET_VERSION = 0x15
-FUNC_ID_ZW_MEMORY_GET_ID = 0x20
-FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES = 0x05
-FUNC_ID_SERIAL_API_GET_CAPABILITIES = 0x07
-FUNC_ID_ZW_GET_SUC_NODE_ID = 0x56 #
-FUNC_ID_ZW_GET_VIRTUAL_NODES = 0xA5
-FUNC_ID_SERIAL_API_GET_INIT_DATA = 0x02
+# "Bunch" suggestion from https://stackoverflow.com/a/2597440
+class Bunch(object):
+  def __init__(self, adict):
+    self.__dict__.update(adict)
 
+commands = {
+    'FUNC_ID_ZW_GET_VERSION': 0x15,
+    'FUNC_ID_ZW_MEMORY_GET_ID': 0x20,
+    'FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES': 0x05,
+    'FUNC_ID_SERIAL_API_GET_CAPABILITIES': 0x07,
+    'FUNC_ID_ZW_GET_SUC_NODE_ID': 0x56,
+    'FUNC_ID_ZW_GET_VIRTUAL_NODES': 0xA5,
+    'FUNC_ID_SERIAL_API_GET_INIT_DATA': 0x02
+}
+
+cmd = Bunch(commands)
 
 class FrameProtocol(serial.threaded.Protocol):
     class State:
@@ -33,6 +49,7 @@ class FrameProtocol(serial.threaded.Protocol):
         self.transport = None
         self.state = self.State.Open
         self.wanted_length = 0
+        self.input_queue = Queue()
 
     def connection_made(self, transport):
         """Store transport"""
@@ -40,7 +57,6 @@ class FrameProtocol(serial.threaded.Protocol):
 
     def connection_lost(self, exc):
         """Forget transport"""
-        print("connection lost! {}".format(exc))
         self.transport = None
         self.in_packet = False
         del self.packet[:]
@@ -56,7 +72,7 @@ class FrameProtocol(serial.threaded.Protocol):
                 if intval == ACK:
                     self.handle_simple_packet([ACK])
                 elif intval == NAK:
-                    self.handle_simple_packet([ACK])
+                    self.handle_simple_packet([NAK])
                 elif intval == CAN:
                     self.handle_simple_packet([CAN])
                 elif intval == SOF:
@@ -81,15 +97,15 @@ class FrameProtocol(serial.threaded.Protocol):
     def handle_simple_packet(self, packet):
         """Process packets - to be overridden by subclassing"""
         # raise NotImplementedError('please implement functionality in handle_packet')
-        print("got simple packet: {}".format(packet))
+        frame = SimplePacket.parse(packet)
+        self.input_queue.put(frame)
 
     def handle_packet(self, packet):
         """Process packets - to be overridden by subclassing"""
         # raise NotImplementedError('please implement functionality in handle_packet')
-        self.write(bytearray([ACK]))
         frame = Frame.parse(packet)
-        print("got frame: {}".format(frame))
-        print("from transport {}".format(self.transport))
+        self.input_queue.put(frame)
+        self.write(bytearray([ACK]))
 
     def handle_bad_data(self, data):
         print("got bad data: {}".format(data))
@@ -102,18 +118,51 @@ class FrameProtocol(serial.threaded.Protocol):
         self.write(frame.as_bytearray())
         print("sent frame: {}".format(frame))
 
+    def has_frame(self):
+        return not self.input_queue.empty()
+
+    def get_frame(self, block=True, timeout=None):
+        return self.input_queue.get(block, timeout)
+
 class InvalidFrame(Exception):
     pass
 
 
-class Frame:
+class SerialPacket:
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
+
+    def as_bytearray(self):
+        raise NotImplemented
+
+class SimplePacket(SerialPacket):
+    def __init__(self, frame_type):
+        self.frame_type = frame_type
+
+    def __str__(self):
+        type_str = frame_type_str[self.frame_type]
+        return "<SimpleFrame: {}>".format(type_str)
+
+    @classmethod
+    def parse(cls, frame_bytes):
+        try:
+            if not frame_bytes[0] in frame_type_str:
+                raise InvalidFrame('No valid frame type: {}'.format(frame_bytes[0]))
+
+            frame_type = frame_bytes[0]
+            return cls(frame_type)
+        except IndexError as e:
+            raise InvalidFrame('Frame too short') from e
+
+    def as_bytearray(self):
+        frame_bytes = bytearray([self.frame_type])
+        return frame_bytes
+
+class Frame(SerialPacket):
     def __init__(self, frame_type, function, data=None):
         self.frame_type = frame_type
         self.function = function
         self.data = data if data else []
-
-    def __eq__(self, other):
-        return self.__dict__ == other.__dict__
 
     def __str__(self):
         type_str = "REQUEST" if self.frame_type == 0 else "RESPONSE"
@@ -262,7 +311,6 @@ class FakeProtocolHandler(socketserver.BaseRequestHandler):
             # self.request is the TCP socket connected to the client
             self.data = self.request.recv(1024)
             if self.data:
-                print("{} wrote:".format(self.client_address[0]))
                 self.server.protocol.data_received(self.data)
                 # just send back the same data, but upper-cased
                 self.request.sendall(self.data)
@@ -289,10 +337,8 @@ class FakeController:
         # Exit the server thread when the main thread terminates
         server_thread.daemon = True
         server_thread.start()
-        print("Server loop running in thread:", server_thread.name)
         port = "socket://localhost:10112"
         self.serialport = serial.serial_for_url(port, baudrate=115200, timeout=3)
-        print("opened: {}".format(self.serialport))
         t = serial.threaded.ReaderThread(self.serialport, FrameProtocol)
         t.start()
         self.transport, self.protocol = t.connect()
@@ -311,7 +357,6 @@ class RealController:
     def open(self):
         port = locate_usb_controller()
         self.serialport = serial.serial_for_url(port, baudrate=115200, timeout=3)
-        print("opened: {}".format(self.serialport))
         t = serial.threaded.ReaderThread(self.serialport, FrameProtocol)
         t.start()
         self.transport, self.protocol = t.connect()
@@ -322,33 +367,45 @@ class RealController:
 
 
 def main():
-    controller = RealController()
+    controller = FakeController()
     controller.open()
 
     import time
 
     protocol = controller.protocol
 
-    frame = Frame(REQUEST, FUNC_ID_ZW_GET_VERSION)
+    frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_VERSION)
     protocol.write_frame(frame)
+    while protocol.has_frame():
+        print("GOT: {}".format(protocol.get_frame()))
 
     time.sleep(1)
-    frame = Frame(REQUEST, FUNC_ID_ZW_MEMORY_GET_ID)
+    frame = Frame(REQUEST, cmd.FUNC_ID_ZW_MEMORY_GET_ID)
     protocol.write_frame(frame)
+    while protocol.has_frame():
+        print("GOT: {}".format(protocol.get_frame()))
 
     time.sleep(1)
-    frame = Frame(REQUEST, FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES)
+    frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES)
     protocol.write_frame(frame)
+    while protocol.has_frame():
+        print("GOT: {}".format(protocol.get_frame()))
 
     time.sleep(1)
-    frame = Frame(REQUEST, FUNC_ID_SERIAL_API_GET_CAPABILITIES)
+    frame = Frame(REQUEST, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES)
     protocol.write_frame(frame)
+    while protocol.has_frame():
+        print("GOT: {}".format(protocol.get_frame()))
 
     time.sleep(1)
-    frame = Frame(REQUEST, FUNC_ID_ZW_GET_SUC_NODE_ID)
+    frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_SUC_NODE_ID)
     protocol.write_frame(frame)
+    while protocol.has_frame():
+        print("GOT: {}".format(protocol.get_frame()))
 
     time.sleep(3)
+    while protocol.has_frame():
+        print("GOT: {}".format(protocol.get_frame()))
 
     controller.close()
 

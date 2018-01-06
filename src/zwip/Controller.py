@@ -1,4 +1,7 @@
+import socketserver
 import struct
+import threading
+
 import serial
 import serial.tools.list_ports
 import serial.threaded
@@ -86,6 +89,7 @@ class FrameProtocol(serial.threaded.Protocol):
         self.write(bytearray([ACK]))
         frame = Frame.parse(packet)
         print("got frame: {}".format(frame))
+        print("from transport {}".format(self.transport))
 
     def handle_bad_data(self, data):
         print("got bad data: {}".format(data))
@@ -235,12 +239,60 @@ class Controller:
         else:
             return None
 
+class FakeTransport:
+    def __init__(self, request):
+        self.request = request
+
+    def write(self, data):
+        print("shoud write {}".format(data))
+        self.request.sendall(data)
+
+
+class FakeProtocolHandler(socketserver.BaseRequestHandler):
+    def setup(self):
+        transport = FakeTransport(self.request)
+        self.server.protocol = FrameProtocol()
+        self.server.protocol.connection_made(transport)
+        print("setup")
+
+    def finish(self):
+        self.server.protocol.connection_lost(None)
+
+        print("finish")
+
+    def handle(self):
+        while not self.server.stop_server:
+            # self.request is the TCP socket connected to the client
+            self.data = self.request.recv(1024)
+            if self.data:
+                print("{} wrote:".format(self.client_address[0]))
+                self.server.protocol.data_received(self.data)
+                # just send back the same data, but upper-cased
+                self.request.sendall(self.data)
+
+
+class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    stop_server = False
+    protocol = None
+
+    pass
 
 def main():
+    HOST, PORT = "localhost", 10112
+
+    server = ThreadedTCPServer((HOST, PORT), FakeProtocolHandler)
+    # Start a thread with the server -- that thread will then start one
+    # more thread for each request
+    server_thread = threading.Thread(target=server.serve_forever)
+    # Exit the server thread when the main thread terminates
+    server_thread.daemon = True
+    server_thread.start()
+    print("Server loop running in thread:", server_thread.name)
 
     import time
 
-    port = locate_usb_controller()
+    #port = locate_usb_controller()
+    port = "socket://localhost:10112"
     serialport = serial.serial_for_url(port, baudrate=115200, timeout=3)
     print("opened: {}".format(serialport))
     t = serial.threaded.ReaderThread(serialport, FrameProtocol)
@@ -269,6 +321,9 @@ def main():
     time.sleep(3)
     t.close()
     serialport.close()
+
+    server.stop_server = True
+    server.shutdown()
 
 if __name__ == '__main__':
     main()

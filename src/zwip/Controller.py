@@ -239,26 +239,23 @@ class Controller:
         else:
             return None
 
-class FakeTransport:
-    def __init__(self, request):
-        self.request = request
-
-    def write(self, data):
-        print("shoud write {}".format(data))
-        self.request.sendall(data)
 
 
 class FakeProtocolHandler(socketserver.BaseRequestHandler):
+    class FakeTransport:
+        def __init__(self, request):
+            self.request = request
+
+        def write(self, data):
+            self.request.sendall(data)
+
     def setup(self):
-        transport = FakeTransport(self.request)
+        transport = self.FakeTransport(self.request)
         self.server.protocol = FrameProtocol()
         self.server.protocol.connection_made(transport)
-        print("setup")
 
     def finish(self):
         self.server.protocol.connection_lost(None)
-
-        print("finish")
 
     def handle(self):
         while not self.server.stop_server:
@@ -275,29 +272,62 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     stop_server = False
     protocol = None
 
-    pass
+    def __init__(self, server_address, RequestHandlerClass):
+        super().__init__(server_address, RequestHandlerClass)
+        self.daemon_threads = True
 
-def main():
+class FakeController:
+    protocol = None
+
     HOST, PORT = "localhost", 10112
 
-    server = ThreadedTCPServer((HOST, PORT), FakeProtocolHandler)
-    # Start a thread with the server -- that thread will then start one
-    # more thread for each request
-    server_thread = threading.Thread(target=server.serve_forever)
-    # Exit the server thread when the main thread terminates
-    server_thread.daemon = True
-    server_thread.start()
-    print("Server loop running in thread:", server_thread.name)
+    def open(self):
+        self.server = ThreadedTCPServer((self.HOST, self.PORT), FakeProtocolHandler)
+        # Start a thread with the server -- that thread will then start one
+        # more thread for each request
+        server_thread = threading.Thread(target=self.server.serve_forever)
+        # Exit the server thread when the main thread terminates
+        server_thread.daemon = True
+        server_thread.start()
+        print("Server loop running in thread:", server_thread.name)
+        port = "socket://localhost:10112"
+        self.serialport = serial.serial_for_url(port, baudrate=115200, timeout=3)
+        print("opened: {}".format(self.serialport))
+        t = serial.threaded.ReaderThread(self.serialport, FrameProtocol)
+        t.start()
+        self.transport, self.protocol = t.connect()
+
+    def close(self):
+        self.transport.close()
+        self.serialport.close()
+
+        self.server.stop_server = True
+        self.server.shutdown()
+
+
+class RealController:
+    protocol = None
+
+    def open(self):
+        port = locate_usb_controller()
+        self.serialport = serial.serial_for_url(port, baudrate=115200, timeout=3)
+        print("opened: {}".format(self.serialport))
+        t = serial.threaded.ReaderThread(self.serialport, FrameProtocol)
+        t.start()
+        self.transport, self.protocol = t.connect()
+
+    def close(self):
+        self.transport.close()
+        self.serialport.close()
+
+
+def main():
+    controller = RealController()
+    controller.open()
 
     import time
 
-    #port = locate_usb_controller()
-    port = "socket://localhost:10112"
-    serialport = serial.serial_for_url(port, baudrate=115200, timeout=3)
-    print("opened: {}".format(serialport))
-    t = serial.threaded.ReaderThread(serialport, FrameProtocol)
-    t.start()
-    transport, protocol = t.connect()
+    protocol = controller.protocol
 
     frame = Frame(REQUEST, FUNC_ID_ZW_GET_VERSION)
     protocol.write_frame(frame)
@@ -319,11 +349,8 @@ def main():
     protocol.write_frame(frame)
 
     time.sleep(3)
-    t.close()
-    serialport.close()
 
-    server.stop_server = True
-    server.shutdown()
+    controller.close()
 
 if __name__ == '__main__':
     main()

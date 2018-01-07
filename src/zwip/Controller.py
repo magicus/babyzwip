@@ -226,7 +226,7 @@ class Frame(SerialPacket):
 
     def as_bytes(self):
         # The first 0 will be replaced by length, the last 0 with checksum
-        frame_bytes = bytearray([SOF, 0, self.frame_type, self.func] + self.data + [0])
+        frame_bytes = bytearray([SOF, 0, self.frame_type, self.func] + list(self.data) + [0])
         # Update length (Don't count SOF and length byte)
         frame_bytes[1] = len(frame_bytes)-2
         # Update checksum (including length but excluding SOF)
@@ -328,12 +328,11 @@ class SerialController:
 
 
 def main():
-    # sender = FakeSender()
-    # sender.open()
-    # remote = sender.remote_protocol()
+    sender = FakeSender()
+    sender.open()
+    remote = sender.remote_protocol()
 
-    # port = sender.port
-    port = locate_usb_controller()
+    port = sender.port
 
     controller = SerialController()
     controller.open(port)
@@ -344,10 +343,10 @@ def main():
     print("SEND:", frame)
     protocol.write_frame(frame)
 
+    frame2 = remote.get_frame(block=True)
+    assert frame2 == frame
     response_frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_VERSION, bytearray(b'Z-Wave 4.05\x00\x01'))
-    #frame = remote.get_frame(block=True)
-    #frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_VERSION)
-    #remote.write_frame(frame)
+    remote.write_frame(response_frame)
 
     frame = protocol.get_frame(block=True)
     print("RECV:", frame)
@@ -357,10 +356,10 @@ def main():
     print("SEND:", frame)
     protocol.write_frame(frame)
 
+    frame2 = remote.get_frame(block=True)
+    assert frame2 == frame
     response_frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_MEMORY_GET_ID, bytearray(b'\xfb\xe3\x9b\xfd\x01'))
-    #frame = remote.get_frame(block=True)
-    #frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_MEMORY_GET_ID)
-    #remote.write_frame(frame)
+    remote.write_frame(response_frame)
 
     frame = protocol.get_frame(block=True)
     print("RECV:", frame)
@@ -370,10 +369,10 @@ def main():
     print("SEND:", frame)
     protocol.write_frame(frame)
 
+    frame2 = remote.get_frame(block=True)
+    assert frame2 == frame
     response_frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES, bytearray(b'('))
-    #frame = remote.get_frame(block=True)
-    #frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES)
-    #remote.write_frame(frame)
+    remote.write_frame(response_frame)
 
     frame = protocol.get_frame(block=True)
     print("RECV:", frame)
@@ -383,10 +382,10 @@ def main():
     print("SEND:", frame)
     protocol.write_frame(frame)
 
+    frame2 = remote.get_frame(block=True)
+    assert frame2 == frame
     response_frame = Frame(RESPONSE, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES, bytearray(b'\x05\x06\x01\x15\x04\x00\x00\x01\xfe\x83\xff\x88\xcf\x1f\x00\x00\xfb\x9f}\xa0g\x00\x80\x80\x00\x80\x86\x00\x00\x00\xe8s\x00\x00\x0e\x00\x00@\x1a\x00'))
-    #frame = remote.get_frame(block=True)
-    #frame = Frame(RESPONSE, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES)
-    #remote.write_frame(frame)
+    remote.write_frame(response_frame)
 
     frame = protocol.get_frame(block=True)
     print("RECV:", frame)
@@ -396,17 +395,17 @@ def main():
     print("SEND:", frame)
     protocol.write_frame(frame)
 
+    frame2 = remote.get_frame(block=True)
+    assert frame2 == frame
     response_frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_SUC_NODE_ID, bytearray(b'\x00'))
-    #frame = remote.get_frame(block=True)
-    #frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_SUC_NODE_ID)
-    #remote.write_frame(frame)
+    remote.write_frame(response_frame)
 
     frame = protocol.get_frame(block=True)
     print("RECV:", frame)
     assert frame == response_frame
 
     controller.close()
-    #sender.close()
+    sender.close()
 
 
 if __name__ == '__main__':

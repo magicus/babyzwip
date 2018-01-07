@@ -9,4 +9,7 @@ install:
 
 # command to run tests
 script:
-  - python setup.py test
+  - tox
+
+after_success:
+ - coveralls

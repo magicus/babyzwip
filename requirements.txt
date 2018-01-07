@@ -2,3 +2,4 @@ pyserial
 pytest
 tox
 coverage
+coveralls

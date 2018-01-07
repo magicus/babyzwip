@@ -39,7 +39,7 @@ commands = {
 
 cmd = Bunch(commands)
 
-class FrameProtocol(serial.threaded.Protocol):
+class RawFrameProtocol(serial.threaded.Protocol):
     class State:
         Open, WantLength, WantData = range(3)
 
@@ -114,13 +114,20 @@ class FrameProtocol(serial.threaded.Protocol):
 
     def write_frame(self, frame):
         self.write(frame.as_bytearray())
-        print("sent frame: {}".format(frame))
 
     def has_frame(self):
         return not self.input_queue.empty()
 
     def get_frame(self, block=True, timeout=None):
         return self.input_queue.get(block, timeout)
+
+class FrameProtocol(RawFrameProtocol):
+    def _frame_received(self, frame):
+        if isinstance(frame, BadPacket):
+            self.write_frame(SimplePacket(NAK))
+        elif isinstance(frame, Frame):
+            self.write_frame(SimplePacket(ACK))
+            self.input_queue.put(frame)
 
 class InvalidFrame(Exception):
     pass
@@ -169,8 +176,7 @@ class BadPacket(SerialPacket):
         return cls(data)
 
     def as_bytearray(self):
-        frame_bytes = bytearray([self.data])
-        return frame_bytes
+        return bytearray(self.data)
 
 class Frame(SerialPacket):
     def __init__(self, frame_type, function, data=None):
@@ -241,7 +247,6 @@ class FakeProtocolHandler(socketserver.BaseRequestHandler):
 
     def setup(self):
         transport = self.FakeTransport(self.request)
-        self.server.protocol = FrameProtocol()
         self.server.protocol.connection_made(transport)
 
     def finish(self):
@@ -259,33 +264,27 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     stop_server = False
     protocol = None
 
-    def __init__(self, server_address, RequestHandlerClass):
+    def __init__(self, server_address, RequestHandlerClass, ProtocolType):
         super().__init__(server_address, RequestHandlerClass)
         self.daemon_threads = True
+        self.protocol = ProtocolType()
 
-class FakeController:
+class FakeSender:
     protocol = None
 
     HOST, PORT = "localhost", 10111
 
-    def open(self):
-        self.server = ThreadedTCPServer((self.HOST, self.PORT), FakeProtocolHandler)
+    def open(self, ProtocolType=FrameProtocol):
+        self.server = ThreadedTCPServer((self.HOST, self.PORT), FakeProtocolHandler, ProtocolType)
         # Start a thread with the server -- that thread will then start one
         # more thread for each request
         server_thread = threading.Thread(target=self.server.serve_forever)
         # Exit the server thread when the main thread terminates
         server_thread.daemon = True
         server_thread.start()
-        port = "socket://{}:{}".format(self.HOST, self.PORT)
-        self.serialport = serial.serial_for_url(port, baudrate=115200, timeout=3)
-        t = serial.threaded.ReaderThread(self.serialport, FrameProtocol)
-        t.start()
-        self.transport, self.protocol = t.connect()
+        self.port = "socket://{}:{}".format(self.HOST, self.PORT)
 
     def close(self):
-        self.transport.close()
-        self.serialport.close()
-
         self.server.stop_server = True
         self.server.shutdown()
 
@@ -293,13 +292,12 @@ class FakeController:
         return self.server.protocol
 
 
-class RealController:
+class SerialController:
     protocol = None
 
-    def open(self):
-        port = locate_usb_controller()
+    def open(self, port, ProtocolType=FrameProtocol):
         self.serialport = serial.serial_for_url(port, baudrate=115200, timeout=3)
-        t = serial.threaded.ReaderThread(self.serialport, FrameProtocol)
+        t = serial.threaded.ReaderThread(self.serialport, ProtocolType)
         t.start()
         self.transport, self.protocol = t.connect()
 
@@ -309,110 +307,75 @@ class RealController:
 
 
 def main():
-    controller = FakeController()
-    controller.open()
+    sender = FakeSender()
+    sender.open()
+    remote = sender.remote_protocol()
 
-    import time
-    time.sleep(1)
+    port = sender.port
+    # port = locate_usb_controller()
+
+    controller = SerialController()
+    controller.open(port)
 
     protocol = controller.protocol
-    remote = controller.remote_protocol()
 
     frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_VERSION)
+    print("SEND:", frame)
     protocol.write_frame(frame)
 
-    remote_frame = remote.get_frame(block=True)
-    print("GOT rem REQ: {}".format(remote_frame))
-    if isinstance(remote_frame, BadPacket):
-        remote.write_frame(SimplePacket(NAK))
-    elif isinstance(remote_frame, Frame):
-        remote.write_frame(SimplePacket(ACK))
+    frame = remote.get_frame(block=True)
+    frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_VERSION)
+    remote.write_frame(frame)
 
-    pro_frame = protocol.get_frame(block=True)
-    print("GOT pro ACK: {}".format(pro_frame))
-    if isinstance(pro_frame, BadPacket):
-        protocol.write_frame(SimplePacket(NAK))
-    elif isinstance(pro_frame, Frame):
-        protocol.write_frame(SimplePacket(ACK))
-
-    frame2 = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_VERSION)
-    remote.write_frame(frame2)
-
-    pro_frame = protocol.get_frame(block=True)
-    print("GOT pro RES: {}".format(pro_frame))
-    if isinstance(pro_frame, BadPacket):
-        protocol.write_frame(SimplePacket(NAK))
-    elif isinstance(pro_frame, Frame):
-        protocol.write_frame(SimplePacket(ACK))
-
-    remote_frame = remote.get_frame(block=True)
-    print("GOT rem ACK: {}".format(remote_frame))
-    if isinstance(remote_frame, BadPacket):
-        remote.write_frame(SimplePacket(NAK))
-    elif isinstance(remote_frame, Frame):
-        remote.write_frame(SimplePacket(ACK))
-
-    time.sleep(1)
-    print("remote", remote.has_frame())
-    print("protocol", protocol.has_frame())
-    while protocol.has_frame():
-        print("GOT: {}".format(protocol.get_frame(block=True)))
-    print("protocol", protocol.has_frame())
-
-
-    controller.close()
-    exit(1)
+    frame = protocol.get_frame(block=True)
+    print("RECV:", frame)
 
     frame = Frame(REQUEST, cmd.FUNC_ID_ZW_MEMORY_GET_ID)
+    print("SEND:", frame)
     protocol.write_frame(frame)
-    remote_frame = remote.get_frame(block=True)
-    if isinstance(remote_frame, BadPacket):
-        remote.write_frame(SimplePacket(NAK))
-    elif isinstance(remote_frame, Frame):
-        remote.write_frame(SimplePacket(ACK))
 
-    print("GOT remote: {}".format(remote_frame))
-    remote.write_frame(remote_frame)
-    while protocol.has_frame():
-        print("GOT: {}".format(protocol.get_frame()))
+    frame = remote.get_frame(block=True)
+    frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_MEMORY_GET_ID)
+    remote.write_frame(frame)
 
-    time.sleep(1)
+    frame = protocol.get_frame(block=True)
+    print("RECV:", frame)
+
     frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES)
+    print("SEND:", frame)
     protocol.write_frame(frame)
-    remote_frame = remote.get_frame(block=True)
-    print("GOT remote: {}".format(remote_frame))
-    remote.write_frame(SimplePacket(ACK))
-    frame2 = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES)
-    remote.write_frame(frame2)
-    print("GOT: {}".format(protocol.get_frame(block=True)))
-    remote_frame = remote.get_frame(block=True)
-    print("GOT remote: {}".format(remote_frame))
 
-    time.sleep(1)
+    frame = remote.get_frame(block=True)
+    frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES)
+    remote.write_frame(frame)
+
+    frame = protocol.get_frame(block=True)
+    print("RECV:", frame)
+
     frame = Frame(REQUEST, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES)
+    print("SEND:", frame)
     protocol.write_frame(frame)
-    remote_frame = remote.get_frame(block=True)
-    print("GOT remote: {}".format(remote_frame))
-    remote.write_frame(SimplePacket(ACK))
-    remote.write_frame(remote_frame)
-    while protocol.has_frame():
-        print("GOT: {}".format(protocol.get_frame()))
 
-    time.sleep(1)
+    frame = remote.get_frame(block=True)
+    frame = Frame(RESPONSE, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES)
+    remote.write_frame(frame)
+
+    frame = protocol.get_frame(block=True)
+    print("RECV:", frame)
+
     frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_SUC_NODE_ID)
+    print("SEND:", frame)
     protocol.write_frame(frame)
-    remote_frame = remote.get_frame(block=True)
-    print("GOT remote: {}".format(remote_frame))
-    remote.write_frame(SimplePacket(ACK))
-    remote.write_frame(remote_frame)
-    while protocol.has_frame():
-        print("GOT: {}".format(protocol.get_frame()))
 
-    time.sleep(3)
-    while protocol.has_frame():
-        print("GOT: {}".format(protocol.get_frame()))
+    frame = remote.get_frame(block=True)
+    frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_SUC_NODE_ID)
+    remote.write_frame(frame)
+
+    frame = protocol.get_frame(block=True)
+    print("RECV:", frame)
 
     controller.close()
+    sender.close()
 
 if __name__ == '__main__':
     main()

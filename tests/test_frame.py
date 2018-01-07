@@ -1,26 +1,26 @@
 import pytest
 
-from zwip.Controller import Frame, InvalidFrame, REQUEST, RESPONSE, FUNC_ID_ZW_GET_VERSION
+from zwip.Controller import Frame, InvalidFrame, REQUEST, RESPONSE, cmd
 
 class TestFrame(object):
 
     request_get_version_bytearray = bytearray([0x01, 0x03, 0x00, 0x15, 0xe9])
 
     def test_basics(self):
-        frame = Frame(REQUEST, FUNC_ID_ZW_GET_VERSION)
+        frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_VERSION)
         assert frame
-        assert frame.function == FUNC_ID_ZW_GET_VERSION
+        assert frame.function == cmd.FUNC_ID_ZW_GET_VERSION
         assert frame.frame_type == REQUEST
-        frame2 = Frame(RESPONSE, FUNC_ID_ZW_GET_VERSION)
+        frame2 = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_VERSION)
         assert frame != frame2
 
     def test_as_bytearray(self):
-        frame = Frame(REQUEST, FUNC_ID_ZW_GET_VERSION)
+        frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_VERSION)
         array = frame.as_bytearray()
         assert array == self.request_get_version_bytearray
 
     def test_parse(self):
-        frame = Frame(REQUEST, FUNC_ID_ZW_GET_VERSION)
+        frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_VERSION)
         parsed_frame = Frame.parse(self.request_get_version_bytearray)
         assert parsed_frame == frame
 

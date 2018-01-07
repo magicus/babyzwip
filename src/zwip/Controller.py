@@ -94,22 +94,20 @@ class FrameProtocol(serial.threaded.Protocol):
                     self.wanted_length = 0
                     self.packet = bytearray()
 
-    def handle_simple_packet(self, packet):
-        """Process packets - to be overridden by subclassing"""
-        # raise NotImplementedError('please implement functionality in handle_packet')
-        frame = SimplePacket.parse(packet)
+    def _frame_received(self, frame):
         self.input_queue.put(frame)
+
+    def handle_simple_packet(self, packet):
+        frame = SimplePacket.parse(packet)
+        self._frame_received(frame)
 
     def handle_packet(self, packet):
-        """Process packets - to be overridden by subclassing"""
-        # raise NotImplementedError('please implement functionality in handle_packet')
         frame = Frame.parse(packet)
-        self.input_queue.put(frame)
-        self.write(bytearray([ACK]))
+        self._frame_received(frame)
 
     def handle_bad_data(self, data):
-        print("got bad data: {}".format(data))
-        self.write(bytearray([NAK]))
+        frame = BadPacket.parse(data)
+        self._frame_received(frame)
 
     def write(self, data):
         self.transport.write(data)
@@ -141,7 +139,7 @@ class SimplePacket(SerialPacket):
 
     def __str__(self):
         type_str = frame_type_str[self.frame_type]
-        return "<SimpleFrame: {}>".format(type_str)
+        return "<SimplePacket: {}>".format(type_str)
 
     @classmethod
     def parse(cls, frame_bytes):
@@ -156,6 +154,22 @@ class SimplePacket(SerialPacket):
 
     def as_bytearray(self):
         frame_bytes = bytearray([self.frame_type])
+        return frame_bytes
+
+class BadPacket(SerialPacket):
+    def __init__(self, data):
+        self.data = data
+
+    def __str__(self):
+        type_str = frame_type_str[self.frame_type]
+        return "<BadPacket: {}>".format(self.data)
+
+    @classmethod
+    def parse(cls, data):
+        return cls(data)
+
+    def as_bytearray(self):
+        frame_bytes = bytearray([self.data])
         return frame_bytes
 
 class Frame(SerialPacket):
@@ -205,64 +219,6 @@ class Frame(SerialPacket):
         frame_bytes[-1] = self.calc_checksum(frame_bytes[1:])
         return frame_bytes
 
-
-class ControllerInterface:
-    def __init__(self):
-        pass
-
-    def read(self, length=1):
-        pass
-
-    def write(self, data):
-        pass
-
-    def open(self):
-        pass
-
-    def close(self):
-        pass
-
-
-class FakeController(ControllerInterface):
-    def read(self, length=1):
-        print(self._buffer)
-        # return self._buffer.pop(0)
-        value = self._buffer[0:length]
-        del self._buffer[0:length]
-        return value
-
-    def _add_data(self, data):
-        ba = bytearray(data)
-        self._buffer.extend(ba)
-
-    def __init__(self):
-        super().__init__()
-        self._buffer = bytearray()
-        # ba2 = bytearray('\01\04hej\00', 'ascii')
-        ba3 = struct.pack('B4p', SOF, bytes('hej\00', 'ascii'))
-        # self._add_data([SOF, 4, 'h', 'e', 'j', 0])
-        self._add_data(ba3)
-
-
-class UsbController(ControllerInterface):
-    def __init__(self, port):
-        super().__init__()
-        self._port = port
-        self._serial = serial.serial_for_url(port, baudrate=115200, timeout=3)
-        print("opened: {}".format(self._serial))
-
-    def close(self):
-        self._serial.close()
-
-    def read(self, length=1):
-        data = self._serial.read(length)
-        print("read data {}".format(data))
-        return data
-
-    def write(self, data):
-        self._serial.write(data)
-
-
 def locate_usb_controller():
     uzb_sticks = [port.device for port in serial.tools.list_ports.grep('VID:PID=0658:0200')]
     if not uzb_sticks:
@@ -273,21 +229,6 @@ def locate_usb_controller():
         return None
     else:
         return uzb_sticks[0]
-
-
-class Controller:
-    def __init__(self, interface):
-        self._interface = interface
-
-    def next_msg(self):
-        msg_type = self._interface.read(1)
-        if msg_type[0] == SOF:
-            length = self._interface.read(1)
-            content = self._interface.read(length[0])
-            return content
-        else:
-            return None
-
 
 
 class FakeProtocolHandler(socketserver.BaseRequestHandler):
@@ -312,8 +253,6 @@ class FakeProtocolHandler(socketserver.BaseRequestHandler):
             self.data = self.request.recv(1024)
             if self.data:
                 self.server.protocol.data_received(self.data)
-                # just send back the same data, but upper-cased
-                self.request.sendall(self.data)
 
 
 class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
@@ -327,7 +266,7 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 class FakeController:
     protocol = None
 
-    HOST, PORT = "localhost", 10112
+    HOST, PORT = "localhost", 10111
 
     def open(self):
         self.server = ThreadedTCPServer((self.HOST, self.PORT), FakeProtocolHandler)
@@ -337,7 +276,7 @@ class FakeController:
         # Exit the server thread when the main thread terminates
         server_thread.daemon = True
         server_thread.start()
-        port = "socket://localhost:10112"
+        port = "socket://{}:{}".format(self.HOST, self.PORT)
         self.serialport = serial.serial_for_url(port, baudrate=115200, timeout=3)
         t = serial.threaded.ReaderThread(self.serialport, FrameProtocol)
         t.start()
@@ -349,6 +288,9 @@ class FakeController:
 
         self.server.stop_server = True
         self.server.shutdown()
+
+    def remote_protocol(self):
+        return self.server.protocol
 
 
 class RealController:
@@ -371,35 +313,98 @@ def main():
     controller.open()
 
     import time
+    time.sleep(1)
 
     protocol = controller.protocol
+    remote = controller.remote_protocol()
 
     frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_VERSION)
     protocol.write_frame(frame)
-    while protocol.has_frame():
-        print("GOT: {}".format(protocol.get_frame()))
+
+    remote_frame = remote.get_frame(block=True)
+    print("GOT rem REQ: {}".format(remote_frame))
+    if isinstance(remote_frame, BadPacket):
+        remote.write_frame(SimplePacket(NAK))
+    elif isinstance(remote_frame, Frame):
+        remote.write_frame(SimplePacket(ACK))
+
+    pro_frame = protocol.get_frame(block=True)
+    print("GOT pro ACK: {}".format(pro_frame))
+    if isinstance(pro_frame, BadPacket):
+        protocol.write_frame(SimplePacket(NAK))
+    elif isinstance(pro_frame, Frame):
+        protocol.write_frame(SimplePacket(ACK))
+
+    frame2 = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_VERSION)
+    remote.write_frame(frame2)
+
+    pro_frame = protocol.get_frame(block=True)
+    print("GOT pro RES: {}".format(pro_frame))
+    if isinstance(pro_frame, BadPacket):
+        protocol.write_frame(SimplePacket(NAK))
+    elif isinstance(pro_frame, Frame):
+        protocol.write_frame(SimplePacket(ACK))
+
+    remote_frame = remote.get_frame(block=True)
+    print("GOT rem ACK: {}".format(remote_frame))
+    if isinstance(remote_frame, BadPacket):
+        remote.write_frame(SimplePacket(NAK))
+    elif isinstance(remote_frame, Frame):
+        remote.write_frame(SimplePacket(ACK))
 
     time.sleep(1)
+    print("remote", remote.has_frame())
+    print("protocol", protocol.has_frame())
+    while protocol.has_frame():
+        print("GOT: {}".format(protocol.get_frame(block=True)))
+    print("protocol", protocol.has_frame())
+
+
+    controller.close()
+    exit(1)
+
     frame = Frame(REQUEST, cmd.FUNC_ID_ZW_MEMORY_GET_ID)
     protocol.write_frame(frame)
+    remote_frame = remote.get_frame(block=True)
+    if isinstance(remote_frame, BadPacket):
+        remote.write_frame(SimplePacket(NAK))
+    elif isinstance(remote_frame, Frame):
+        remote.write_frame(SimplePacket(ACK))
+
+    print("GOT remote: {}".format(remote_frame))
+    remote.write_frame(remote_frame)
     while protocol.has_frame():
         print("GOT: {}".format(protocol.get_frame()))
 
     time.sleep(1)
     frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES)
     protocol.write_frame(frame)
-    while protocol.has_frame():
-        print("GOT: {}".format(protocol.get_frame()))
+    remote_frame = remote.get_frame(block=True)
+    print("GOT remote: {}".format(remote_frame))
+    remote.write_frame(SimplePacket(ACK))
+    frame2 = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES)
+    remote.write_frame(frame2)
+    print("GOT: {}".format(protocol.get_frame(block=True)))
+    remote_frame = remote.get_frame(block=True)
+    print("GOT remote: {}".format(remote_frame))
 
     time.sleep(1)
     frame = Frame(REQUEST, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES)
     protocol.write_frame(frame)
+    remote_frame = remote.get_frame(block=True)
+    print("GOT remote: {}".format(remote_frame))
+    remote.write_frame(SimplePacket(ACK))
+    remote.write_frame(remote_frame)
     while protocol.has_frame():
         print("GOT: {}".format(protocol.get_frame()))
 
     time.sleep(1)
     frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_SUC_NODE_ID)
     protocol.write_frame(frame)
+    remote_frame = remote.get_frame(block=True)
+    print("GOT remote: {}".format(remote_frame))
+    remote.write_frame(SimplePacket(ACK))
+    remote.write_frame(remote_frame)
     while protocol.has_frame():
         print("GOT: {}".format(protocol.get_frame()))
 

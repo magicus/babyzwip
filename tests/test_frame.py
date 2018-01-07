@@ -9,14 +9,14 @@ class TestFrame(object):
     def test_basics(self):
         frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_VERSION)
         assert frame
-        assert frame.function == cmd.FUNC_ID_ZW_GET_VERSION
+        assert frame.func == cmd.FUNC_ID_ZW_GET_VERSION
         assert frame.frame_type == REQUEST
         frame2 = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_VERSION)
         assert frame != frame2
 
     def test_as_bytearray(self):
         frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_VERSION)
-        array = frame.as_bytearray()
+        array = frame.as_bytes()
         assert array == self.request_get_version_bytearray
 
     def test_parse(self):
@@ -213,4 +213,3 @@ class TestRawFrame:
 
         controller.close()
         sender.close()
-

@@ -22,10 +22,12 @@ frame_type_str = {
 REQUEST = 0x00
 RESPONSE = 0x01
 
+
 # "Bunch" suggestion from https://stackoverflow.com/a/2597440
 class Bunch(object):
-  def __init__(self, adict):
-    self.__dict__.update(adict)
+    def __init__(self, adict):
+        self.__dict__.update(adict)
+
 
 commands = {
     'FUNC_ID_ZW_GET_VERSION': 0x15,
@@ -39,13 +41,13 @@ commands = {
 
 cmd = Bunch(commands)
 
+
 class RawFrameProtocol(serial.threaded.Protocol):
     class State:
         Open, WantLength, WantData = range(3)
 
     def __init__(self):
         self.packet = bytearray()
-        self.in_packet = False
         self.transport = None
         self.state = self.State.Open
         self.wanted_length = 0
@@ -58,38 +60,36 @@ class RawFrameProtocol(serial.threaded.Protocol):
     def connection_lost(self, exc):
         """Forget transport"""
         self.transport = None
-        self.in_packet = False
-        del self.packet[:]
+        self.packet = None
         self.state = self.State.Open
         self.wanted_length = 0
         super().connection_lost(exc)
 
     def data_received(self, data):
-        for byte in serial.iterbytes(data):
-            intval = int.from_bytes(byte, "big")  # network byte order
-
+        for byte in data:
             if self.state == self.State.Open:
-                if intval == ACK:
-                    self.handle_simple_packet([ACK])
-                elif intval == NAK:
-                    self.handle_simple_packet([NAK])
-                elif intval == CAN:
-                    self.handle_simple_packet([CAN])
-                elif intval == SOF:
+                if byte == ACK:
+                    self.handle_simple_packet(ACK)
+                elif byte == NAK:
+                    self.handle_simple_packet(NAK)
+                elif byte == CAN:
+                    self.handle_simple_packet(CAN)
+                elif byte == SOF:
+                    self.packet.append(byte)
                     self.state = self.State.WantLength
-                    self.packet.extend(byte)
                     # FIXME: set timeout for this operation?
                 else:
-                    self.handle_bad_data(byte)
+                    self.handle_bad_data([byte])
             elif self.state == self.State.WantLength:
-                self.wanted_length = intval
-                self.packet.extend(byte)
+                self.packet.append(byte)
+                self.wanted_length = byte
                 self.state = self.State.WantData
                 # FIXME: timeout?
             elif self.state == self.State.WantData:
-                self.packet.extend(byte)
+                self.packet.append(byte)
                 if len(self.packet) == self.wanted_length+2:
                     self.handle_packet(self.packet)
+
                     self.state = self.State.Open
                     self.wanted_length = 0
                     self.packet = bytearray()
@@ -97,8 +97,8 @@ class RawFrameProtocol(serial.threaded.Protocol):
     def _frame_received(self, frame):
         self.input_queue.put(frame)
 
-    def handle_simple_packet(self, packet):
-        frame = SimplePacket.parse(packet)
+    def handle_simple_packet(self, byte):
+        frame = SimplePacket.parse(byte)
         self._frame_received(frame)
 
     def handle_packet(self, packet):
@@ -113,13 +113,14 @@ class RawFrameProtocol(serial.threaded.Protocol):
         self.transport.write(data)
 
     def write_frame(self, frame):
-        self.write(frame.as_bytearray())
+        self.write(frame.as_bytes())
 
     def has_frame(self):
         return not self.input_queue.empty()
 
     def get_frame(self, block=True, timeout=None):
         return self.input_queue.get(block, timeout)
+
 
 class FrameProtocol(RawFrameProtocol):
     def _frame_received(self, frame):
@@ -129,6 +130,7 @@ class FrameProtocol(RawFrameProtocol):
             self.write_frame(SimplePacket(ACK))
             self.input_queue.put(frame)
 
+
 class InvalidFrame(Exception):
     pass
 
@@ -137,8 +139,9 @@ class SerialPacket:
     def __eq__(self, other):
         return self.__dict__ == other.__dict__
 
-    def as_bytearray(self):
+    def as_bytes(self):
         raise NotImplemented
+
 
 class SimplePacket(SerialPacket):
     def __init__(self, frame_type):
@@ -149,22 +152,23 @@ class SimplePacket(SerialPacket):
         return "<SimplePacket: {}>".format(type_str)
 
     @classmethod
-    def parse(cls, frame_bytes):
+    def parse(cls, frame_byte):
         try:
-            if not frame_bytes[0] in frame_type_str:
-                raise InvalidFrame('No valid frame type: {}'.format(frame_bytes[0]))
+            if not frame_byte in frame_type_str:
+                raise InvalidFrame('No valid frame type: {}'.format(frame_byte))
 
-            frame_type = frame_bytes[0]
+            frame_type = frame_byte
             return cls(frame_type)
         except IndexError as e:
             raise InvalidFrame('Frame too short') from e
 
-    def as_bytearray(self):
-        frame_bytes = bytearray([self.frame_type])
+    def as_bytes(self):
+        frame_bytes = bytes([self.frame_type])
         return frame_bytes
 
+
 class BadPacket(SerialPacket):
-    def __init__(self, data):
+    def __init__(self, data: bytes):
         self.data = data
 
     def __str__(self):
@@ -173,20 +177,24 @@ class BadPacket(SerialPacket):
 
     @classmethod
     def parse(cls, data):
-        return cls(data)
+        return cls(bytes(data))
 
-    def as_bytearray(self):
-        return bytearray(self.data)
+    def as_bytes(self):
+        return self.data
+
 
 class Frame(SerialPacket):
-    def __init__(self, frame_type, function, data=None):
+    def __init__(self, frame_type, func, data=None):
         self.frame_type = frame_type
-        self.function = function
+        self.func = func
         self.data = data if data else []
+
+    def __eq__(self, other):
+        return self.__dict__ == other.__dict__
 
     def __str__(self):
         type_str = "REQUEST" if self.frame_type == 0 else "RESPONSE"
-        return "<Frame[{}:{}]: {}>".format(type_str, self.function, bytearray(self.data))
+        return "<Frame[{}:{}]: {}>".format(type_str, self.func, bytearray(self.data))
 
     @classmethod
     def parse(cls, frame_bytes):
@@ -203,7 +211,7 @@ class Frame(SerialPacket):
 
             frame_type = frame_bytes[2]
             function = frame_bytes[3]
-            data = list(frame_bytes[4:-1])
+            data = bytes(frame_bytes[4:-1])
             return cls(frame_type, function, data)
         except IndexError as e:
             raise InvalidFrame('Frame too short') from e
@@ -216,14 +224,15 @@ class Frame(SerialPacket):
             checksum ^= b
         return checksum
 
-    def as_bytearray(self):
+    def as_bytes(self):
         # The first 0 will be replaced by length, the last 0 with checksum
-        frame_bytes = bytearray([SOF, 0, self.frame_type, self.function] + self.data + [0])
+        frame_bytes = bytearray([SOF, 0, self.frame_type, self.func] + self.data + [0])
         # Update length (Don't count SOF and length byte)
         frame_bytes[1] = len(frame_bytes)-2
         # Update checksum (including length but excluding SOF)
         frame_bytes[-1] = self.calc_checksum(frame_bytes[1:])
-        return frame_bytes
+        return bytes(frame_bytes)
+
 
 def locate_usb_controller():
     uzb_sticks = [port.device for port in serial.tools.list_ports.grep('VID:PID=0658:0200')]
@@ -269,20 +278,32 @@ class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
         self.daemon_threads = True
         self.protocol = ProtocolType()
 
+
 class FakeSender:
     protocol = None
 
     HOST, PORT = "localhost", 10111
 
     def open(self, ProtocolType=FrameProtocol):
-        self.server = ThreadedTCPServer((self.HOST, self.PORT), FakeProtocolHandler, ProtocolType)
+        port = self.PORT
+        self.server = None
+        while not self.server:
+            try:
+                self.server = ThreadedTCPServer((self.HOST, port), FakeProtocolHandler, ProtocolType)
+            except OSError as e:
+                if port < self.PORT + 10:
+                    # Retry some times with next higher port
+                    port = port + 1
+                else:
+                    raise e
+
         # Start a thread with the server -- that thread will then start one
         # more thread for each request
         server_thread = threading.Thread(target=self.server.serve_forever)
         # Exit the server thread when the main thread terminates
         server_thread.daemon = True
         server_thread.start()
-        self.port = "socket://{}:{}".format(self.HOST, self.PORT)
+        self.port = "socket://{}:{}".format(self.HOST, port)
 
     def close(self):
         self.server.stop_server = True
@@ -307,12 +328,12 @@ class SerialController:
 
 
 def main():
-    sender = FakeSender()
-    sender.open()
-    remote = sender.remote_protocol()
+    # sender = FakeSender()
+    # sender.open()
+    # remote = sender.remote_protocol()
 
-    port = sender.port
-    # port = locate_usb_controller()
+    # port = sender.port
+    port = locate_usb_controller()
 
     controller = SerialController()
     controller.open(port)
@@ -323,59 +344,70 @@ def main():
     print("SEND:", frame)
     protocol.write_frame(frame)
 
-    frame = remote.get_frame(block=True)
-    frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_VERSION)
-    remote.write_frame(frame)
+    response_frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_VERSION, bytearray(b'Z-Wave 4.05\x00\x01'))
+    #frame = remote.get_frame(block=True)
+    #frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_VERSION)
+    #remote.write_frame(frame)
 
     frame = protocol.get_frame(block=True)
     print("RECV:", frame)
+    assert frame == response_frame
 
     frame = Frame(REQUEST, cmd.FUNC_ID_ZW_MEMORY_GET_ID)
     print("SEND:", frame)
     protocol.write_frame(frame)
 
-    frame = remote.get_frame(block=True)
-    frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_MEMORY_GET_ID)
-    remote.write_frame(frame)
+    response_frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_MEMORY_GET_ID, bytearray(b'\xfb\xe3\x9b\xfd\x01'))
+    #frame = remote.get_frame(block=True)
+    #frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_MEMORY_GET_ID)
+    #remote.write_frame(frame)
 
     frame = protocol.get_frame(block=True)
     print("RECV:", frame)
+    assert frame == response_frame
 
     frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES)
     print("SEND:", frame)
     protocol.write_frame(frame)
 
-    frame = remote.get_frame(block=True)
-    frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES)
-    remote.write_frame(frame)
+    response_frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES, bytearray(b'('))
+    #frame = remote.get_frame(block=True)
+    #frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES)
+    #remote.write_frame(frame)
 
     frame = protocol.get_frame(block=True)
     print("RECV:", frame)
+    assert frame == response_frame
 
     frame = Frame(REQUEST, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES)
     print("SEND:", frame)
     protocol.write_frame(frame)
 
-    frame = remote.get_frame(block=True)
-    frame = Frame(RESPONSE, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES)
-    remote.write_frame(frame)
+    response_frame = Frame(RESPONSE, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES, bytearray(b'\x05\x06\x01\x15\x04\x00\x00\x01\xfe\x83\xff\x88\xcf\x1f\x00\x00\xfb\x9f}\xa0g\x00\x80\x80\x00\x80\x86\x00\x00\x00\xe8s\x00\x00\x0e\x00\x00@\x1a\x00'))
+    #frame = remote.get_frame(block=True)
+    #frame = Frame(RESPONSE, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES)
+    #remote.write_frame(frame)
 
     frame = protocol.get_frame(block=True)
     print("RECV:", frame)
+    assert frame == response_frame
 
     frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_SUC_NODE_ID)
     print("SEND:", frame)
     protocol.write_frame(frame)
 
-    frame = remote.get_frame(block=True)
-    frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_SUC_NODE_ID)
-    remote.write_frame(frame)
+    response_frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_SUC_NODE_ID, bytearray(b'\x00'))
+    #frame = remote.get_frame(block=True)
+    #frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_SUC_NODE_ID)
+    #remote.write_frame(frame)
 
     frame = protocol.get_frame(block=True)
     print("RECV:", frame)
+    assert frame == response_frame
 
     controller.close()
-    sender.close()
+    #sender.close()
+
 
 if __name__ == '__main__':
     main()

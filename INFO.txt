@@ -475,3 +475,5 @@ void Controller::PlayInitSequence
 
 #define FUNC_ID_ZW_GET_VIRTUAL_NODES					0xA5	// Return all virtual nodes
 #define FUNC_ID_SERIAL_API_GET_INIT_DATA				0x02
+
+// at start of communications, send a NAK to resynchronise communications

@@ -187,7 +187,7 @@ class Frame(SerialPacket):
     def __init__(self, frame_type, func, data=None):
         self.frame_type = frame_type
         self.func = func
-        self.data = data if data else []
+        self.data = data if data else bytes()
 
     def __eq__(self, other):
         return self.__dict__ == other.__dict__
@@ -327,6 +327,24 @@ class SerialController:
         self.serialport.close()
 
 
+class ControllerInfo:
+    LibraryTypes = [
+        "Unknown",
+        "Static Controller",
+        "Portable Controller",
+        "Enhanced Slave",
+        "Slave",
+        "Installer",
+        "Routing Slave",
+        "Bridge Controller",
+        "Device Under Test"
+    ]
+
+    library_version = None
+    library_type = None
+    home_id = None
+    node_id = None
+
 def main():
     sender = FakeSender()
     sender.open()
@@ -351,7 +369,14 @@ def main():
     frame = protocol.get_frame(block=True)
     print("RECV:", frame)
     assert frame == response_frame
+    controller_info = ControllerInfo()
 
+    controller_info.library_version = frame.data[0:12].decode('ascii').rstrip(' \0')
+    controller_info.library_type = frame.data[12]
+
+    print("we got {} {}".format(controller_info.library_version, controller_info.LibraryTypes[controller_info.library_type]))
+
+###
     frame = Frame(REQUEST, cmd.FUNC_ID_ZW_MEMORY_GET_ID)
     print("SEND:", frame)
     protocol.write_frame(frame)
@@ -364,6 +389,11 @@ def main():
     frame = protocol.get_frame(block=True)
     print("RECV:", frame)
     assert frame == response_frame
+
+    controller_info.home_id = int.from_bytes(frame.data[0:4], 'big')
+    controller_info.node_id = frame.data[4] # int.from_bytes(frame.data[4], 'big')
+    print("we got ID {:#04x} {}".format(controller_info.home_id, controller_info.node_id))
+
 
     frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES)
     print("SEND:", frame)

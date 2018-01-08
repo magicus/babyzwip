@@ -1,3 +1,4 @@
+import ctypes
 import socketserver
 import struct
 import threading
@@ -345,6 +346,79 @@ class ControllerInfo:
     home_id = None
     node_id = None
 
+
+class PacketBits(ctypes.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("secondary", ctypes.c_ubyte, 1),
+        ("on_other_network", ctypes.c_ubyte, 1),
+        ("sis", ctypes.c_ubyte, 1),
+        ("real_primary", ctypes.c_ubyte, 1),
+        ("suc", ctypes.c_ubyte, 1),
+        ("unknown1", ctypes.c_ubyte, 1),
+        ("unknown2", ctypes.c_ubyte, 1),
+        ("unknown3", ctypes.c_ubyte, 1),
+    ]
+
+class ControllerCapabilitiesBitfield(ctypes.Union):
+    _anonymous_ = ("bits",)
+    _fields_ = [("bits", PacketBits),
+                ("binary_data", ctypes.c_ubyte)]
+
+
+class FrameHandler:
+    def __init__(self):
+        self.info = ControllerInfo()
+
+    def handle_incoming_frame(self, frame):
+        if frame.func == cmd.FUNC_ID_ZW_GET_VERSION:
+            self.info.library_version = frame.data[0:12].decode('ascii').rstrip(' \0')
+            self.info.library_type = frame.data[12]
+
+            print("we got {} {}".format(self.info.library_version,
+                                        self.info.LibraryTypes[self.info.library_type]))
+
+        elif frame.func == cmd.FUNC_ID_ZW_MEMORY_GET_ID:
+            self.info.home_id = int.from_bytes(frame.data[0:4], 'big')
+            self.info.node_id = frame.data[4]
+
+            print("we got ID {:#04x} {}".format(self.info.home_id, self.info.node_id))
+
+        elif frame.func == cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES:
+            packet = ControllerCapabilitiesBitfield()
+            packet.binary_data = frame.data[0]
+
+            print(packet.bits.secondary, packet.bits.on_other_network, packet.bits.sis, packet.bits.real_primary,
+                  packet.bits.suc, packet.bits.unknown1)
+
+        elif frame.func == cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES:
+            self.info.serial_version_major = frame.data[0]
+            self.info.serial_version_minor = frame.data[1]
+            self.info.serial_version = "{}.{}".format(self.info.serial_version_major, self.info.serial_version_minor)
+
+            self.info.manufacturer_id = int.from_bytes(frame.data[2:4], 'big')
+            self.info.product_type = int.from_bytes(frame.data[4:6], 'big')
+            self.info.product_id = int.from_bytes(frame.data[6:8], 'big')
+
+            self.info.serial_api_funcs_bitmask = int.from_bytes(frame.data[8:40], 'little')
+
+            print("Serial API Version {}".format(self.info.serial_version))
+            print("Manufacturer ID {:#06x}".format(self.info.manufacturer_id))
+            print("Product Type {:#06x}".format(self.info.product_type))
+            print("Product ID {:#06x}".format(self.info.product_id))
+
+            print("testbit = ", self.info.serial_api_funcs_bitmask & (1 << cmd.FUNC_ID_ZW_GET_VERSION) != 0)
+            print("testbit = ", self.info.serial_api_funcs_bitmask & (1 << cmd.FUNC_ID_ZW_MEMORY_GET_ID) != 0)
+            print("testbit = ", self.info.serial_api_funcs_bitmask & (1 << cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES) != 0)
+            print("testbit = ", self.info.serial_api_funcs_bitmask & (1 << cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES) != 0)
+
+        elif frame.func == cmd.FUNC_ID_ZW_GET_SUC_NODE_ID:
+            self.info.suc_node_id = frame.data[0]
+
+            print("SUC node id {}".format(self.info.suc_node_id))
+
+
+
 def main():
     sender = FakeSender()
     sender.open()
@@ -356,6 +430,8 @@ def main():
     controller.open(port)
 
     protocol = controller.protocol
+
+    handler = FrameHandler()
 
     frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_VERSION)
     print("SEND:", frame)
@@ -369,14 +445,9 @@ def main():
     frame = protocol.get_frame(block=True)
     print("RECV:", frame)
     assert frame == response_frame
-    controller_info = ControllerInfo()
+    handler.handle_incoming_frame(frame)
 
-    controller_info.library_version = frame.data[0:12].decode('ascii').rstrip(' \0')
-    controller_info.library_type = frame.data[12]
 
-    print("we got {} {}".format(controller_info.library_version, controller_info.LibraryTypes[controller_info.library_type]))
-
-###
     frame = Frame(REQUEST, cmd.FUNC_ID_ZW_MEMORY_GET_ID)
     print("SEND:", frame)
     protocol.write_frame(frame)
@@ -389,10 +460,7 @@ def main():
     frame = protocol.get_frame(block=True)
     print("RECV:", frame)
     assert frame == response_frame
-
-    controller_info.home_id = int.from_bytes(frame.data[0:4], 'big')
-    controller_info.node_id = frame.data[4] # int.from_bytes(frame.data[4], 'big')
-    print("we got ID {:#04x} {}".format(controller_info.home_id, controller_info.node_id))
+    handler.handle_incoming_frame(frame)
 
 
     frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES)
@@ -407,6 +475,8 @@ def main():
     frame = protocol.get_frame(block=True)
     print("RECV:", frame)
     assert frame == response_frame
+    handler.handle_incoming_frame(frame)
+
 
     frame = Frame(REQUEST, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES)
     print("SEND:", frame)
@@ -420,6 +490,8 @@ def main():
     frame = protocol.get_frame(block=True)
     print("RECV:", frame)
     assert frame == response_frame
+    handler.handle_incoming_frame(frame)
+
 
     frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_SUC_NODE_ID)
     print("SEND:", frame)
@@ -433,6 +505,8 @@ def main():
     frame = protocol.get_frame(block=True)
     print("RECV:", frame)
     assert frame == response_frame
+    handler.handle_incoming_frame(frame)
+
 
     controller.close()
     sender.close()

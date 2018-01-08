@@ -384,6 +384,7 @@ class FrameHandler:
             print("we got ID {:#04x} {}".format(self.info.home_id, self.info.node_id))
 
         elif frame.func == cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES:
+            pass
             # packet = ControllerCapabilitiesBitfield()
             # packet.binary_data = frame.data[0]
             #

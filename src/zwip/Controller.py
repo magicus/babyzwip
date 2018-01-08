@@ -346,23 +346,24 @@ class ControllerInfo:
     node_id = None
 
 
-# class PacketBits(ctypes.LittleEndianStructure):
-#     _pack_ = 1
-#     _fields_ = [
-#         ("secondary", ctypes.c_ubyte, 1),
-#         ("on_other_network", ctypes.c_ubyte, 1),
-#         ("sis", ctypes.c_ubyte, 1),
-#         ("real_primary", ctypes.c_ubyte, 1),
-#         ("suc", ctypes.c_ubyte, 1),
-#         ("unknown1", ctypes.c_ubyte, 1),
-#         ("unknown2", ctypes.c_ubyte, 1),
-#         ("unknown3", ctypes.c_ubyte, 1),
-#     ]
-#
-# class ControllerCapabilitiesBitfield(ctypes.Union):
-#     _anonymous_ = ("bits",)
-#     _fields_ = [("bits", PacketBits),
-#                 ("binary_data", ctypes.c_ubyte)]
+class PacketBits(ctypes.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("secondary", ctypes.c_ubyte, 1),
+        ("on_other_network", ctypes.c_ubyte, 1),
+        ("sis", ctypes.c_ubyte, 1),
+        ("real_primary", ctypes.c_ubyte, 1),
+        ("suc", ctypes.c_ubyte, 1),
+        ("unknown1", ctypes.c_ubyte, 1),
+        ("unknown2", ctypes.c_ubyte, 1),
+        ("unknown3", ctypes.c_ubyte, 1),
+    ]
+
+
+class ControllerCapabilitiesBitfield(ctypes.Union):
+    _anonymous_ = ("bits",)
+    _fields_ = [("bits", PacketBits),
+                ("binary_data", ctypes.c_ubyte)]
 
 
 class FrameHandler:
@@ -384,12 +385,11 @@ class FrameHandler:
             print("we got ID {:#04x} {}".format(self.info.home_id, self.info.node_id))
 
         elif frame.func == cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES:
-            pass
-            # packet = ControllerCapabilitiesBitfield()
-            # packet.binary_data = frame.data[0]
-            #
-            # print(packet.bits.secondary, packet.bits.on_other_network, packet.bits.sis, packet.bits.real_primary,
-            #       packet.bits.suc, packet.bits.unknown1)
+            packet = ControllerCapabilitiesBitfield()
+            packet.binary_data = frame.data[0]
+
+            print(packet.bits.secondary, packet.bits.on_other_network, packet.bits.sis, packet.bits.real_primary,
+                  packet.bits.suc, packet.bits.unknown1)
 
         elif frame.func == cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES:
             self.info.serial_version_major = frame.data[0]

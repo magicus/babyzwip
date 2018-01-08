@@ -161,7 +161,7 @@ class SimplePacket(SerialPacket):
             frame_type = frame_byte
             return cls(frame_type)
         except IndexError as e:
-            raise InvalidFrame('Frame too short') from e
+            raise InvalidFrame('Frame too short')
 
     def as_bytes(self):
         frame_bytes = bytes([self.frame_type])
@@ -173,7 +173,6 @@ class BadPacket(SerialPacket):
         self.data = data
 
     def __str__(self):
-        type_str = frame_type_str[self.frame_type]
         return "<BadPacket: {}>".format(self.data)
 
     @classmethod
@@ -215,7 +214,7 @@ class Frame(SerialPacket):
             data = bytes(frame_bytes[4:-1])
             return cls(frame_type, function, data)
         except IndexError as e:
-            raise InvalidFrame('Frame too short') from e
+            raise InvalidFrame('Frame too short')
 
     @staticmethod
     def calc_checksum(frame_bytes):
@@ -270,7 +269,7 @@ class FakeProtocolHandler(socketserver.BaseRequestHandler):
                 self.server.protocol.data_received(self.data)
 
 
-class ThreadedTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+class ThreadedTCPServer(socketserver.TCPServer, socketserver.ThreadingMixIn):
     stop_server = False
     protocol = None
 
@@ -347,23 +346,23 @@ class ControllerInfo:
     node_id = None
 
 
-class PacketBits(ctypes.LittleEndianStructure):
-    _pack_ = 1
-    _fields_ = [
-        ("secondary", ctypes.c_ubyte, 1),
-        ("on_other_network", ctypes.c_ubyte, 1),
-        ("sis", ctypes.c_ubyte, 1),
-        ("real_primary", ctypes.c_ubyte, 1),
-        ("suc", ctypes.c_ubyte, 1),
-        ("unknown1", ctypes.c_ubyte, 1),
-        ("unknown2", ctypes.c_ubyte, 1),
-        ("unknown3", ctypes.c_ubyte, 1),
-    ]
-
-class ControllerCapabilitiesBitfield(ctypes.Union):
-    _anonymous_ = ("bits",)
-    _fields_ = [("bits", PacketBits),
-                ("binary_data", ctypes.c_ubyte)]
+# class PacketBits(ctypes.LittleEndianStructure):
+#     _pack_ = 1
+#     _fields_ = [
+#         ("secondary", ctypes.c_ubyte, 1),
+#         ("on_other_network", ctypes.c_ubyte, 1),
+#         ("sis", ctypes.c_ubyte, 1),
+#         ("real_primary", ctypes.c_ubyte, 1),
+#         ("suc", ctypes.c_ubyte, 1),
+#         ("unknown1", ctypes.c_ubyte, 1),
+#         ("unknown2", ctypes.c_ubyte, 1),
+#         ("unknown3", ctypes.c_ubyte, 1),
+#     ]
+#
+# class ControllerCapabilitiesBitfield(ctypes.Union):
+#     _anonymous_ = ("bits",)
+#     _fields_ = [("bits", PacketBits),
+#                 ("binary_data", ctypes.c_ubyte)]
 
 
 class FrameHandler:
@@ -385,11 +384,11 @@ class FrameHandler:
             print("we got ID {:#04x} {}".format(self.info.home_id, self.info.node_id))
 
         elif frame.func == cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES:
-            packet = ControllerCapabilitiesBitfield()
-            packet.binary_data = frame.data[0]
-
-            print(packet.bits.secondary, packet.bits.on_other_network, packet.bits.sis, packet.bits.real_primary,
-                  packet.bits.suc, packet.bits.unknown1)
+            # packet = ControllerCapabilitiesBitfield()
+            # packet.binary_data = frame.data[0]
+            #
+            # print(packet.bits.secondary, packet.bits.on_other_network, packet.bits.sis, packet.bits.real_primary,
+            #       packet.bits.suc, packet.bits.unknown1)
 
         elif frame.func == cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES:
             self.info.serial_version_major = frame.data[0]

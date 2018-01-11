@@ -31,13 +31,58 @@ class Bunch(object):
 
 
 commands = {
-    'FUNC_ID_ZW_GET_VERSION': 0x15,
-    'FUNC_ID_ZW_MEMORY_GET_ID': 0x20,
+    'FUNC_ID_SERIAL_API_GET_INIT_DATA': 0x02,
+    'FUNC_ID_SERIAL_API_APPL_NODE_INFORMATION': 0x03,
+    'FUNC_ID_APPLICATION_COMMAND_HANDLER': 0x04,
     'FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES': 0x05,
+    'FUNC_ID_SERIAL_API_SET_TIMEOUTS ': 0x06,
     'FUNC_ID_SERIAL_API_GET_CAPABILITIES': 0x07,
+    'FUNC_ID_SERIAL_API_SOFT_RESET': 0x08,
+    'FUNC_ID_ZW_SEND_NODE_INFORMATION': 0x12,
+    'FUNC_ID_ZW_SEND_DATA': 0x13,
+    'FUNC_ID_ZW_GET_VERSION': 0x15,
+    'FUNC_ID_ZW_R_F_POWER_LEVEL_SET': 0x17,
+    'FUNC_ID_ZW_GET_RANDOM': 0x1c,
+    'FUNC_ID_ZW_MEMORY_GET_ID': 0x20,
+    'FUNC_ID_MEMORY_GET_BYTE': 0x21,
+    'FUNC_ID_ZW_READ_MEMORY': 0x23,
+    'FUNC_ID_ZW_SET_LEARN_NODE_STATE': 0x40,
+    'FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO': 0x41,
+    'FUNC_ID_ZW_SET_DEFAULT': 0x42,
+    'FUNC_ID_ZW_NEW_CONTROLLER': 0x43,
+    'FUNC_ID_ZW_REPLICATION_COMMAND_COMPLETE': 0x44,
+    'FUNC_ID_ZW_REPLICATION_SEND_DATA': 0x45,
+    'FUNC_ID_ZW_ASSIGN_RETURN_ROUTE': 0x46,
+    'FUNC_ID_ZW_DELETE_RETURN_ROUTE': 0x47,
+    'FUNC_ID_ZW_REQUEST_NODE_NEIGHBOR_UPDATE': 0x48,
+    'FUNC_ID_ZW_APPLICATION_UPDATE': 0x49,
+    'FUNC_ID_ZW_ADD_NODE_TO_NETWORK': 0x4a,
+    'FUNC_ID_ZW_REMOVE_NODE_FROM_NETWORK': 0x4b,
+    'FUNC_ID_ZW_CREATE_NEW_PRIMARY': 0x4c,
+    'FUNC_ID_ZW_CONTROLLER_CHANGE': 0x4d,
+    'FUNC_ID_ZW_SET_LEARN_MODE': 0x50,
+    'FUNC_ID_ZW_ASSIGN_SUC_RETURN_ROUTE': 0x51,
+    'FUNC_ID_ZW_ENABLE_SUC': 0x52,
+    'FUNC_ID_ZW_REQUEST_NETWORK_UPDATE': 0x53,
+    'FUNC_ID_ZW_SET_SUC_NODE_ID': 0x54,
+    'FUNC_ID_ZW_DELETE_SUC_RETURN_ROUTE': 0x55,
     'FUNC_ID_ZW_GET_SUC_NODE_ID': 0x56,
-    'FUNC_ID_ZW_GET_VIRTUAL_NODES': 0xA5,
-    'FUNC_ID_SERIAL_API_GET_INIT_DATA': 0x02
+    'FUNC_ID_ZW_REQUEST_NODE_NEIGHBOR_UPDATE_OPTIONS': 0x5a,
+    'FUNC_ID_ZW_EXPLORE_REQUEST_INCLUSION': 0x5e,
+    'FUNC_ID_ZW_REQUEST_NODE_INFO': 0x60,
+    'FUNC_ID_ZW_REMOVE_FAILED_NODE_ID': 0x61,
+    'FUNC_ID_ZW_IS_FAILED_NODE_ID': 0x62,
+    'FUNC_ID_ZW_REPLACE_FAILED_NODE': 0x63,
+    'FUNC_ID_ZW_GET_ROUTING_INFO': 0x80,
+    'FUNC_ID_SERIAL_API_SLAVE_NODE_INFO': 0xa0,
+    'FUNC_ID_APPLICATION_SLAVE_COMMAND_HANDLER': 0xa1,
+    'FUNC_ID_ZW_SEND_SLAVE_NODE_INFO': 0xa2,
+    'FUNC_ID_ZW_SEND_SLAVE_DATA': 0xa3,
+    'FUNC_ID_ZW_SET_SLAVE_LEARN_MODE': 0xa4,
+    'FUNC_ID_ZW_GET_VIRTUAL_NODES': 0xa5,
+    'FUNC_ID_ZW_IS_VIRTUAL_NODE': 0xa6,
+    'FUNC_ID_ZW_SET_PROMISCUOUS_MODE': 0xd0,
+    'FUNC_ID_PROMISCUOUS_APPLICATION_COMMAND_HANDLER': 0xd1
 }
 
 cmd = Bunch(commands)
@@ -365,10 +410,13 @@ class ControllerCapabilitiesBitfield(ctypes.Union):
     _fields_ = [("bits", PacketBits),
                 ("binary_data", ctypes.c_ubyte)]
 
+class Node:
+    pass
 
+controller_info = ControllerInfo()
 class FrameHandler:
     def __init__(self):
-        self.info = ControllerInfo()
+        self.info = controller_info
 
     def handle_incoming_frame(self, frame):
         if frame.func == cmd.FUNC_ID_ZW_GET_VERSION:
@@ -407,10 +455,20 @@ class FrameHandler:
             print("Product Type {:#06x}".format(self.info.product_type))
             print("Product ID {:#06x}".format(self.info.product_id))
 
-            print("testbit = ", self.info.serial_api_funcs_bitmask & (1 << cmd.FUNC_ID_ZW_GET_VERSION) != 0)
-            print("testbit = ", self.info.serial_api_funcs_bitmask & (1 << cmd.FUNC_ID_ZW_MEMORY_GET_ID) != 0)
-            print("testbit = ", self.info.serial_api_funcs_bitmask & (1 << cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES) != 0)
-            print("testbit = ", self.info.serial_api_funcs_bitmask & (1 << cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES) != 0)
+            for cmd_name in commands:
+                cmd_num = commands.get(cmd_name)
+                cmd_offset = cmd_num - 1
+                is_cmd = self.info.serial_api_funcs_bitmask & (1 << cmd_offset) != 0
+                if is_cmd:
+                    print("has {} ({})".format(cmd_name, cmd_num))
+                else:
+                    print("NOT {} ({})".format(cmd_name, cmd_num))
+
+            all_cmd_nums = commands.values()
+            for i in range(0, 255):
+                is_cmd = self.info.serial_api_funcs_bitmask & (1 << i) != 0
+                if (i not in all_cmd_nums) and is_cmd:
+                    print("UNKNOWN cmd value {:#x}".format(i))
 
         elif frame.func == cmd.FUNC_ID_ZW_GET_SUC_NODE_ID:
             self.info.suc_node_id = frame.data[0]
@@ -420,47 +478,130 @@ class FrameHandler:
         elif frame.func == cmd.FUNC_ID_ZW_GET_VIRTUAL_NODES:
             self.info.virtual_nodes_bitmask = int.from_bytes(frame.data[0:29], 'little')
 
+            #assert len(frame.data) == 29
+
             print("virtual nodes: {}".format(self.info.virtual_nodes_bitmask))
             for i in range(0, 232):
                 is_node = self.info.virtual_nodes_bitmask & (1 << i) != 0
                 if is_node:
                     print("Has virtual node at {}".format(i))
 
-def test_frame(protocol, remote, command, expected_payload):
+        elif frame.func == cmd.FUNC_ID_ZW_GET_RANDOM:
+            unknown1 = frame.data[0] # random RESPONSE = 1 ?
+            random_len = frame.data[1]
+
+            self.info.random = frame.data[2:]
+            assert random_len == len(self.info.random)
+
+            print("Random returned {}, unkn1 {}".format(self.info.random, unknown1))
+
+        elif frame.func == cmd.FUNC_ID_SERIAL_API_GET_INIT_DATA:
+            self.info.init_version = frame.data[0]
+            self.info.init_caps = frame.data[1]
+
+            bitfield_len = frame.data[2]
+            assert bitfield_len == 29 # 232 nodes / 8
+            self.info.nodes_bitmask = int.from_bytes(frame.data[3:32], 'little')
+            self.info.unknown_init_ver2 = frame.data[32]
+            self.info.unknown_init_cap2 = frame.data[33]
+
+
+            print("init_ver {}, init_cap {}".format(self.info.init_version, self.info.init_caps))
+            print("unknown, perhahps init_ver {}, init_cap {}".format(self.info.unknown_init_ver2, self.info.unknown_init_cap2))
+            print("nodes: {}".format(self.info.nodes_bitmask))
+            for i in range(0, 232):
+                is_node = self.info.nodes_bitmask & (1 << i) != 0
+                node_num = i+1
+                if is_node:
+                    print("Has node at {}".format(node_num))
+
+        elif frame.func == cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO:
+            node = Node()
+            node.generic_class = frame.data[4]
+            caps = frame.data[0]
+
+            node.is_listening = caps & 0x80 != 0
+            node.is_routing = caps & 0x40 != 0
+
+            # 00111000 is baud rate mask (0x38)
+            if caps & 0x38 == 0x10:
+                node.max_baud = 40000
+            else:
+                node.max_baud = 9600
+
+            # 00000111 is version mask
+            node.version = (caps & 0x07) + 1
+
+            security = frame.data[1]
+            # SecurityFlag_Security = 0x01
+            node.is_secure = security & 0x01 != 0
+
+            unknown = frame.data[2]
+            node.basic_class = frame.data[3]
+            node.generic_class = frame.data[4]
+            node.specific_class =  frame.data[5]
+
+            print("class: basic {}, generic {}, specific {}".format(node.basic_class, node.generic_class, node.specific_class))
+            print("is listening {}, is routing {}, is_secure {}, baud {}, version {}".format(node.is_listening, node.is_routing, node.is_secure, node.max_baud, node.version))
+            print("unknown {}, security {}".format(unknown, security))
+            # generic class == 0 ==> non-existant node.
+            print("node info returned {}, len {}".format(frame.data, len(frame.data)))
+
+def call_command(protocol, remote, command, expected_payload, command_data=None):
     handler = FrameHandler()
 
-    frame = Frame(REQUEST, command)
+    frame = Frame(REQUEST, command, command_data)
     print("SEND:", frame)
     protocol.write_frame(frame)
 
-    frame2 = remote.get_frame(block=True)
-    assert frame2 == frame
     response_frame = Frame(RESPONSE, command, expected_payload)
-    remote.write_frame(response_frame)
+    if remote:
+        frame2 = remote.get_frame(block=True)
+        assert frame2 == frame
+        remote.write_frame(response_frame)
 
     frame = protocol.get_frame(block=True)
     print("RECV:", frame)
-    assert frame == response_frame
+    if command != cmd.FUNC_ID_ZW_GET_RANDOM and expected_payload != None:
+        assert frame == response_frame
     handler.handle_incoming_frame(frame)
 
 def main():
     sender = FakeSender()
     sender.open()
     remote = sender.remote_protocol()
+    #remote = None
 
     port = sender.port
+    #port = locate_usb_controller()
 
     controller = SerialController()
     controller.open(port)
 
     protocol = controller.protocol
 
-    test_frame(protocol, remote, cmd.FUNC_ID_ZW_GET_VERSION, bytearray(b'Z-Wave 4.05\x00\x01'))
-    test_frame(protocol, remote, cmd.FUNC_ID_ZW_MEMORY_GET_ID, bytearray(b'\xfb\xe3\x9b\xfd\x01'))
-    test_frame(protocol, remote, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES, bytearray(b'('))
-    test_frame(protocol, remote, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES, bytearray(b'\x05\x06\x01\x15\x04\x00\x00\x01\xfe\x83\xff\x88\xcf\x1f\x00\x00\xfb\x9f}\xa0g\x00\x80\x80\x00\x80\x86\x00\x00\x00\xe8s\x00\x00\x0e\x00\x00@\x1a\x00'))
-    test_frame(protocol, remote, cmd.FUNC_ID_ZW_GET_SUC_NODE_ID, bytearray(b'\x00'))
-    test_frame(protocol, remote, cmd.FUNC_ID_ZW_GET_VIRTUAL_NODES, bytearray(b'\x21\x00\x01'))
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_VERSION, bytearray(b'Z-Wave 4.05\x00\x01'))
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_MEMORY_GET_ID, bytearray(b'\xfb\xe3\x9b\xfd\x01'))
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES, bytearray(b'('))
+    call_command(protocol, remote, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES, bytearray(b'\x05\x06\x01\x15\x04\x00\x00\x01\xfe\x83\xff\x88\xcf\x1f\x00\x00\xfb\x9f}\xa0g\x00\x80\x80\x00\x80\x86\x00\x00\x00\xe8s\x00\x00\x0e\x00\x00@\x1a\x00'))
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_SUC_NODE_ID, bytearray(b'\x00'))
+    # Only do this if this is a bridge controller, i.e. library_type == 7
+    #test_frame(protocol, remote, cmd.FUNC_ID_ZW_GET_VIRTUAL_NODES, bytearray(b'\x21\x00\x01'))
+    # arg1: random length, MIN=1, MAX = 32, rounded up to nearest even number.
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_RANDOM, bytearray(b'\x01\x04\xca\xfe\xba\xbe'), bytes([4]))
+    call_command(protocol, remote, cmd.FUNC_ID_SERIAL_API_GET_INIT_DATA, bytearray(b'\x05\x00\x1d\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x05\x00'))
+
+    # arg1: node_id
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO, bytearray(b'\x00\x00\x00\x03\x00\x00'), bytes([0]))
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO, bytearray(b'\x93\x16\x01\x02\x02\x01'), bytes([1]))
+
+    for i in range(0, 232):
+        is_node = controller_info.nodes_bitmask & (1 << i) != 0
+        if is_node:
+            print("testing node at {}".format(i+1))
+            expected = bytearray(b'\x00\x00\x00\x03\x00\x00') if remote else None
+            call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO, expected,
+                         bytes([i+1]))
 
     controller.close()
     sender.close()

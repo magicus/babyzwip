@@ -557,6 +557,12 @@ class FrameHandler:
             # generic class == 0 ==> non-existant node.
             print("node info returned {}, len {}".format(frame.data, len(frame.data)))
 
+        elif frame.func == cmd.FUNC_ID_ZW_REQUEST_NODE_INFO:
+            request_successful = frame.data[0] != 0
+            assert request_successful
+
+            print("request node info OK: {}".format(request_successful))
+
         elif frame.func == cmd.FUNC_ID_ZW_APPLICATION_UPDATE:
             node = Node()
             node.state = frame.data[0]
@@ -573,6 +579,7 @@ class FrameHandler:
             self.info.network_update_ok = frame.data[0] != 0
 
             print("network update state OK: {}".format(self.info.network_update_ok))
+
         else:
             print("unknown frame to handle: {}".format(frame))
 
@@ -643,11 +650,11 @@ def main():
 
     call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NETWORK_UPDATE, bytearray(b'\x00'))
 
-#    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
-#    call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([1]), extra_frame)
+    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([1]), extra_frame)
 
-#    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
-#    call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([2]), extra_frame)
+    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([2]), extra_frame)
 
     controller.close()
     sender.close()

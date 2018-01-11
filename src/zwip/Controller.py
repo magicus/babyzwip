@@ -417,7 +417,31 @@ class FrameHandler:
 
             print("SUC node id {}".format(self.info.suc_node_id))
 
+        elif frame.func == cmd.FUNC_ID_ZW_GET_VIRTUAL_NODES:
+            self.info.virtual_nodes_bitmask = int.from_bytes(frame.data[0:29], 'little')
 
+            print("virtual nodes: {}".format(self.info.virtual_nodes_bitmask))
+            for i in range(0, 232):
+                is_node = self.info.virtual_nodes_bitmask & (1 << i) != 0
+                if is_node:
+                    print("Has virtual node at {}".format(i))
+
+def test_frame(protocol, remote, command, expected_payload):
+    handler = FrameHandler()
+
+    frame = Frame(REQUEST, command)
+    print("SEND:", frame)
+    protocol.write_frame(frame)
+
+    frame2 = remote.get_frame(block=True)
+    assert frame2 == frame
+    response_frame = Frame(RESPONSE, command, expected_payload)
+    remote.write_frame(response_frame)
+
+    frame = protocol.get_frame(block=True)
+    print("RECV:", frame)
+    assert frame == response_frame
+    handler.handle_incoming_frame(frame)
 
 def main():
     sender = FakeSender()
@@ -431,82 +455,12 @@ def main():
 
     protocol = controller.protocol
 
-    handler = FrameHandler()
-
-    frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_VERSION)
-    print("SEND:", frame)
-    protocol.write_frame(frame)
-
-    frame2 = remote.get_frame(block=True)
-    assert frame2 == frame
-    response_frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_VERSION, bytearray(b'Z-Wave 4.05\x00\x01'))
-    remote.write_frame(response_frame)
-
-    frame = protocol.get_frame(block=True)
-    print("RECV:", frame)
-    assert frame == response_frame
-    handler.handle_incoming_frame(frame)
-
-
-    frame = Frame(REQUEST, cmd.FUNC_ID_ZW_MEMORY_GET_ID)
-    print("SEND:", frame)
-    protocol.write_frame(frame)
-
-    frame2 = remote.get_frame(block=True)
-    assert frame2 == frame
-    response_frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_MEMORY_GET_ID, bytearray(b'\xfb\xe3\x9b\xfd\x01'))
-    remote.write_frame(response_frame)
-
-    frame = protocol.get_frame(block=True)
-    print("RECV:", frame)
-    assert frame == response_frame
-    handler.handle_incoming_frame(frame)
-
-
-    frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES)
-    print("SEND:", frame)
-    protocol.write_frame(frame)
-
-    frame2 = remote.get_frame(block=True)
-    assert frame2 == frame
-    response_frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES, bytearray(b'('))
-    remote.write_frame(response_frame)
-
-    frame = protocol.get_frame(block=True)
-    print("RECV:", frame)
-    assert frame == response_frame
-    handler.handle_incoming_frame(frame)
-
-
-    frame = Frame(REQUEST, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES)
-    print("SEND:", frame)
-    protocol.write_frame(frame)
-
-    frame2 = remote.get_frame(block=True)
-    assert frame2 == frame
-    response_frame = Frame(RESPONSE, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES, bytearray(b'\x05\x06\x01\x15\x04\x00\x00\x01\xfe\x83\xff\x88\xcf\x1f\x00\x00\xfb\x9f}\xa0g\x00\x80\x80\x00\x80\x86\x00\x00\x00\xe8s\x00\x00\x0e\x00\x00@\x1a\x00'))
-    remote.write_frame(response_frame)
-
-    frame = protocol.get_frame(block=True)
-    print("RECV:", frame)
-    assert frame == response_frame
-    handler.handle_incoming_frame(frame)
-
-
-    frame = Frame(REQUEST, cmd.FUNC_ID_ZW_GET_SUC_NODE_ID)
-    print("SEND:", frame)
-    protocol.write_frame(frame)
-
-    frame2 = remote.get_frame(block=True)
-    assert frame2 == frame
-    response_frame = Frame(RESPONSE, cmd.FUNC_ID_ZW_GET_SUC_NODE_ID, bytearray(b'\x00'))
-    remote.write_frame(response_frame)
-
-    frame = protocol.get_frame(block=True)
-    print("RECV:", frame)
-    assert frame == response_frame
-    handler.handle_incoming_frame(frame)
-
+    test_frame(protocol, remote, cmd.FUNC_ID_ZW_GET_VERSION, bytearray(b'Z-Wave 4.05\x00\x01'))
+    test_frame(protocol, remote, cmd.FUNC_ID_ZW_MEMORY_GET_ID, bytearray(b'\xfb\xe3\x9b\xfd\x01'))
+    test_frame(protocol, remote, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES, bytearray(b'('))
+    test_frame(protocol, remote, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES, bytearray(b'\x05\x06\x01\x15\x04\x00\x00\x01\xfe\x83\xff\x88\xcf\x1f\x00\x00\xfb\x9f}\xa0g\x00\x80\x80\x00\x80\x86\x00\x00\x00\xe8s\x00\x00\x0e\x00\x00@\x1a\x00'))
+    test_frame(protocol, remote, cmd.FUNC_ID_ZW_GET_SUC_NODE_ID, bytearray(b'\x00'))
+    test_frame(protocol, remote, cmd.FUNC_ID_ZW_GET_VIRTUAL_NODES, bytearray(b'\x21\x00\x01'))
 
     controller.close()
     sender.close()

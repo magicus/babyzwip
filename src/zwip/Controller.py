@@ -29,6 +29,16 @@ class Bunch(object):
     def __init__(self, adict):
         self.__dict__.update(adict)
 
+node_update_states = {
+    'UPDATE_STATE_SUC_ID': 0x10,
+    'UPDATE_STATE_DELETE_DONE': 0x20,
+    'UPDATE_STATE_NEW_ID_ASSIGNED': 0x40,
+    'UPDATE_STATE_ROUTING_PENDING': 0x80,
+    'UPDATE_STATE_NODE_INFO_REQ_FAILED': 0x81,
+    'UPDATE_STATE_NODE_INFO_REQ_DONE': 0x82,
+    'UPDATE_STATE_NODE_INFO_RECEIVED': 0x84
+}
+
 
 commands = {
     'FUNC_ID_SERIAL_API_GET_INIT_DATA': 0x02,
@@ -547,7 +557,28 @@ class FrameHandler:
             # generic class == 0 ==> non-existant node.
             print("node info returned {}, len {}".format(frame.data, len(frame.data)))
 
-def call_command(protocol, remote, command, expected_payload, command_data=None):
+        elif frame.func == cmd.FUNC_ID_ZW_APPLICATION_UPDATE:
+            node = Node()
+            node.state = frame.data[0]
+            node.node_id = frame.data[1]
+
+            state_name = "UNKNOWN_STATE"
+            for name, state in node_update_states.items():
+                if state == node.state:
+                    state_name = name
+
+            print("application update, state {} ({}), node_id {}".format(state_name, node.state, node.node_id))
+
+        elif frame.func == cmd.FUNC_ID_ZW_REQUEST_NETWORK_UPDATE:
+            self.info.network_update_ok = frame.data[0] != 0
+
+            print("network update state OK: {}".format(self.info.network_update_ok))
+        else:
+            print("unknown frame to handle: {}".format(frame))
+
+
+
+def call_command(protocol, remote, command, expected_payload, command_data=None, extra_frame=None):
     handler = FrameHandler()
 
     frame = Frame(REQUEST, command, command_data)
@@ -566,14 +597,21 @@ def call_command(protocol, remote, command, expected_payload, command_data=None)
         assert frame == response_frame
     handler.handle_incoming_frame(frame)
 
+    if extra_frame:
+        frame = protocol.get_frame(block=True)
+        print("RECV<extra>:", frame)
+        assert frame == extra_frame
+        handler.handle_incoming_frame(frame)
+
+
 def main():
     sender = FakeSender()
     sender.open()
     remote = sender.remote_protocol()
-    #remote = None
+    remote = None
 
     port = sender.port
-    #port = locate_usb_controller()
+    port = locate_usb_controller()
 
     controller = SerialController()
     controller.open(port)
@@ -603,9 +641,16 @@ def main():
             call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO, expected,
                          bytes([i+1]))
 
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NETWORK_UPDATE, bytearray(b'\x00'))
+
+#    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
+#    call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([1]), extra_frame)
+
+#    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
+#    call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([2]), extra_frame)
+
     controller.close()
     sender.close()
-
 
 if __name__ == '__main__':
     main()

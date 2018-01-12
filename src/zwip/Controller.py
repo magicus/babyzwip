@@ -123,6 +123,7 @@ class RawFrameProtocol(serial.threaded.Protocol):
 
     def data_received(self, data):
         for byte in data:
+            # print("got byte: ", byte)
             if self.state == self.State.Open:
                 if byte == ACK:
                     self.handle_simple_packet(ACK)
@@ -580,6 +581,26 @@ class FrameHandler:
 
             print("network update state OK: {}".format(self.info.network_update_ok))
 
+        elif frame.func == cmd.FUNC_ID_ZW_SEND_DATA:
+            if frame.frame_type == RESPONSE:
+                send_data_ok = frame.data[0] != 0
+
+                print("RESPONSE send data OK: {}".format(send_data_ok))
+            else:
+                callback_id = frame.data[0]
+                err_code = frame.data[1]
+                unknown1 = frame.data[2]
+                unknown2 = frame.data[3]
+                #error codes:
+                # define TRANSMIT_COMPLETE_OK	  						0x00
+                # define TRANSMIT_COMPLETE_NO_ACK	  					0x01
+                # define TRANSMIT_COMPLETE_FAIL							0x02
+                # define TRANSMIT_COMPLETE_NOT_IDLE						0x03
+                # define TRANSMIT_COMPLETE_NOROUTE 						0x04
+
+                print("REQUEST send data {}".format(frame.data))
+                print("callback id {:#x}, err_code {}, un1 {}, un2 {:#x}".format(callback_id, err_code, unknown1, unknown2))
+
         else:
             print("unknown frame to handle: {}".format(frame))
 
@@ -602,13 +623,45 @@ def call_command(protocol, remote, command, expected_payload, command_data=None,
     print("RECV:", frame)
     if command != cmd.FUNC_ID_ZW_GET_RANDOM and expected_payload != None:
         assert frame == response_frame
+        pass
     handler.handle_incoming_frame(frame)
 
     if extra_frame:
         frame = protocol.get_frame(block=True)
         print("RECV<extra>:", frame)
-        assert frame == extra_frame
+        print("exp RECV<extra>:", extra_frame)
+        #assert frame == extra_frame
         handler.handle_incoming_frame(frame)
+
+
+def oldstuff(protocol, remote):
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_VERSION, bytearray(b'Z-Wave 4.05\x00\x01'))
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_MEMORY_GET_ID, bytearray(b'\xfb\xe3\x9b\xfd\x01'))
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES, bytearray(b'('))
+    call_command(protocol, remote, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES, bytearray(
+        b'\x05\x06\x01\x15\x04\x00\x00\x01\xfe\x83\xff\x88\xcf\x1f\x00\x00\xfb\x9f}\xa0g\x00\x80\x80\x00\x80\x86\x00\x00\x00\xe8s\x00\x00\x0e\x00\x00@\x1a\x00'))
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_SUC_NODE_ID, bytearray(b'\x00'))
+    # Only do this if this is a bridge controller, i.e. library_type == 7
+    # test_frame(protocol, remote, cmd.FUNC_ID_ZW_GET_VIRTUAL_NODES, bytearray(b'\x21\x00\x01'))
+    # arg1: random length, MIN=1, MAX = 32, rounded up to nearest even number.
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_RANDOM, bytearray(b'\x01\x04\xca\xfe\xba\xbe'), bytes([4]))
+    call_command(protocol, remote, cmd.FUNC_ID_SERIAL_API_GET_INIT_DATA, bytearray(
+        b'\x05\x00\x1d\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x05\x00'))
+
+    # arg1: node_id
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO, bytearray(b'\x00\x00\x00\x03\x00\x00'),
+                 bytes([0]))
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO, bytearray(b'\x93\x16\x01\x02\x02\x01'),
+                 bytes([1]))
+
+    for i in range(0, 232):
+        is_node = controller_info.nodes_bitmask & (1 << i) != 0
+        if is_node:
+            print("testing node at {}".format(i + 1))
+            expected = bytearray(b'\x00\x00\x00\x03\x00\x00') if remote else None
+            call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO, expected,
+                         bytes([i + 1]))
+
 
 
 def main():
@@ -625,37 +678,41 @@ def main():
 
     protocol = controller.protocol
 
-    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_VERSION, bytearray(b'Z-Wave 4.05\x00\x01'))
-    call_command(protocol, remote, cmd.FUNC_ID_ZW_MEMORY_GET_ID, bytearray(b'\xfb\xe3\x9b\xfd\x01'))
-    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES, bytearray(b'('))
-    call_command(protocol, remote, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES, bytearray(b'\x05\x06\x01\x15\x04\x00\x00\x01\xfe\x83\xff\x88\xcf\x1f\x00\x00\xfb\x9f}\xa0g\x00\x80\x80\x00\x80\x86\x00\x00\x00\xe8s\x00\x00\x0e\x00\x00@\x1a\x00'))
-    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_SUC_NODE_ID, bytearray(b'\x00'))
-    # Only do this if this is a bridge controller, i.e. library_type == 7
-    #test_frame(protocol, remote, cmd.FUNC_ID_ZW_GET_VIRTUAL_NODES, bytearray(b'\x21\x00\x01'))
-    # arg1: random length, MIN=1, MAX = 32, rounded up to nearest even number.
-    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_RANDOM, bytearray(b'\x01\x04\xca\xfe\xba\xbe'), bytes([4]))
-    call_command(protocol, remote, cmd.FUNC_ID_SERIAL_API_GET_INIT_DATA, bytearray(b'\x05\x00\x1d\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x05\x00'))
+    #oldstuff(protocol, remote)
 
-    # arg1: node_id
-    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO, bytearray(b'\x00\x00\x00\x03\x00\x00'), bytes([0]))
-    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO, bytearray(b'\x93\x16\x01\x02\x02\x01'), bytes([1]))
-
-    for i in range(0, 232):
-        is_node = controller_info.nodes_bitmask & (1 << i) != 0
-        if is_node:
-            print("testing node at {}".format(i+1))
-            expected = bytearray(b'\x00\x00\x00\x03\x00\x00') if remote else None
-            call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO, expected,
-                         bytes([i+1]))
-
+    # openzwave says requires a callback-id at the end, but i'm not sure..?
     call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NETWORK_UPDATE, bytearray(b'\x00'))
 
-    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
-    call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([1]), extra_frame)
 
-    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
-    call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([2]), extra_frame)
+    # define TRANSMIT_OPTION_ACK		 						0x01
+    # define TRANSMIT_OPTION_LOW_POWER		   				0x02
+    # define TRANSMIT_OPTION_AUTO_ROUTE  					0x04
+    # define TRANSMIT_OPTION_NO_ROUTE 						0x10
+    # define TRANSMIT_OPTION_EXPLORE							0x20
 
+    # noop/noop
+    # arg1: node
+    # arg2: 2
+    # arg3: cmd class id, 0x00 == NOOP.
+    # arg4: 0 == NOOP
+    # arg5: transmit options, default  TRANSMIT_OPTION_ACK | TRANSMIT_OPTION_NO_ROUTE = 0x11
+    # arg6: callback-id (start with 0x21)
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), bytearray(b'\x01\x02\x00\x00\x11\x21'), Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'!\x01\x004')))
+
+    # basic/get
+    # cmdclass COMMAND_CLASS_BASIC = 0x20
+    # BasicCmd_Get	= 0x02, BasicCmd_Report	= 0x03
+
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), bytearray(b'\x01\x02\x20\x02\x11\x22'), Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'"\x01\x004')))
+
+#    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
+#    call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([1]), extra_frame)
+
+#    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
+#    call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([2]), extra_frame)
+
+    #import time
+    #time.sleep(10)
     controller.close()
     sender.close()
 

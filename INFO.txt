@@ -9,6 +9,7 @@ https://github.com/yepher/RaZBerry
 https://github.com/openhab/org.openhab.binding.zwave
 https://github.com/oberasoftware/zwave
 https://github.com/whizzosoftware/WZWave
+https://github.com/NetHome/ZWave
 
 ## My running notes
 
@@ -109,8 +110,7 @@ libmicrohttpd-dev
 FUNC_ID_APPLICATION_COMMAND_HANDLER - antar att det är den som prefixar alla paket unsolicited paket?
 	uint8 status = _data[2];
 	uint8 nodeId = _data[3];
- data[4] = len
-
+    data[4] = len
 	uint8 classId = _data[5];
 	data[6] = actual data.
 	 -- of this, [0] is cmd value
@@ -152,3 +152,37 @@ FUNC_ID_APPLICATION_COMMAND_HANDLER - antar att det är den som prefixar alla pa
 	// device does not wake up very often.  Deleting the original and
 	// adding the copy to the end avoids problems with the order of
 	// commands such as on and off.
+
+
+---
+        elif frame.func == cmd.FUNC_ID_ZW_APPLICATION_UPDATE:
+            node = Node()
+            node.state = frame.data[0]
+            node.node_id = frame.data[1]
+            sen följer:
+> 	0x0a 	10 	 ? len
+> 	0x04 	4 	? basic class
+> 	0x10 	16 	? generic
+> 	0x01 	1 	? specific
+> 	0x25 	37 	CommandClass=25
+... och en lång lista av alla command classes!
+
+           if (updateState == NODE_INFO_RECEIVED) {
+                nodeId = in.read();
+                int numberOfCommandClasses = in.read() - 3;
+                basicDeviceClass = in.read();
+                genericDeviceClass = in.read();
+                specificDeviceClass = in.read();
+                byte[] allCommandClasses = new byte[numberOfCommandClasses];
+                in.read(allCommandClasses, 0, numberOfCommandClasses);
+
+
+    # define TRANSMIT_OPTION_ACK		 						0x01
+    # define TRANSMIT_OPTION_LOW_POWER		   				0x02
+    # define TRANSMIT_OPTION_AUTO_ROUTE  					0x04
+    # define TRANSMIT_OPTION_NO_ROUTE 						0x10
+    # define TRANSMIT_OPTION_EXPLORE							0x20
+
+first try: 0x05, second try: 0x25.
+open hab uses  .setTransmitOptions(TRANSMIT_OPTION_ACK | TRANSMIT_OPTION_AUTO_ROUTE | TRANSMIT_OPTION_EXPLORE);
+for all.

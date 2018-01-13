@@ -191,6 +191,7 @@ class FrameProtocol(RawFrameProtocol):
         if isinstance(frame, BadPacket):
             self.write_frame(SimplePacket(NAK))
         elif isinstance(frame, Frame):
+            print("__recv__frame:{}".format(frame))
             self.write_frame(SimplePacket(ACK))
             self.input_queue.put(frame)
 
@@ -575,13 +576,21 @@ class FrameHandler:
             node = Node()
             node.state = frame.data[0]
             node.node_id = frame.data[1]
+            len_rest = frame.data[2]
+            if len_rest > 0:
+                basic_class = frame.data[3]
+                generic_class = frame.data[4]
+                specific_class = frame.data[5]
+                cmd_classes = frame.data[6:len_rest+3] # probably not correct...
+                print("app update: {} {} {}, {}".format(basic_class, generic_class, specific_class, cmd_classes))
 
             state_name = "UNKNOWN_STATE"
             for name, state in node_update_states.items():
                 if state == node.state:
                     state_name = name
 
-            print("application update, state {} ({}), node_id {}".format(state_name, node.state, node.node_id))
+            print("application update, data: {}".format(frame.data))
+            print("application update, state {} ({}), node_id {}, len rest {}".format(state_name, node.state, node.node_id, len_rest))
 
         elif frame.func == cmd.FUNC_ID_ZW_SEND_NODE_INFORMATION:
             if frame.frame_type == RESPONSE:
@@ -602,6 +611,23 @@ class FrameHandler:
             self.info.network_update_ok = frame.data[0] != 0
 
             print("network update state OK: {}".format(self.info.network_update_ok))
+
+        elif frame.func == cmd.FUNC_ID_APPLICATION_COMMAND_HANDLER:
+            status = frame.data[0]
+            node_id = frame.data[1]
+            msg_len = frame.data[2]
+            cmd_class = frame.data[3]
+            cmd_num = frame.data[4]
+            cmd_data = frame.data[5:]
+
+            print("got app BACK: status {:#x}, node {}, len {}, class {:#x}, cmd {:#x}".format(status, node_id, msg_len, cmd_class, cmd_num))
+            print("app BACK cmd data: type {} len {}".format(type(cmd_data), len(cmd_data)))
+            print("app BACK cmd data: content {} ".format(cmd_data))
+            if cmd_data:
+                print("got a value")
+            else:
+                print("no value")
+            print("got FUNC_ID_APPLICATION_COMMAND_HANDLER: {}".format(frame.data))
 
         elif frame.func == cmd.FUNC_ID_ZW_SEND_DATA:
             if frame.frame_type == RESPONSE:
@@ -645,7 +671,7 @@ def call_command(protocol, remote, command, expected_payload, command_data=None,
         frame = protocol.get_frame(block=True)
         print("RECV:", frame)
         if command != cmd.FUNC_ID_ZW_GET_RANDOM and expected_payload != None:
-            assert frame == response_frame
+            #assert frame == response_frame
             pass
         handler.handle_incoming_frame(frame)
 
@@ -703,6 +729,25 @@ def main():
 
     protocol = controller.protocol
 
+    call_command(protocol, remote, cmd.FUNC_ID_SERIAL_API_GET_INIT_DATA, bytearray(
+        b'\x05\x00\x1d\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x05\x00'))
+
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO, bytearray(b'\x93\x16\x01\x02\x02\x01'),
+                 bytes([2]))
+
+    # arg1: dest node
+    # arg2: tx options 0x11
+    # arg3: return handling, 0 = no reply, 0x03 = has reply (actually, callback id)
+    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_NODE_INFORMATION, bytearray(b'\x03\x01'))
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_NODE_INFORMATION, bytearray(b'\x01'), bytearray(b'\x02\x25\x07'), extra_frame)
+
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_VERSION, bytearray(b'Z-Wave 4.05\x00\x01'))
+
+    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([2]), extra_frame)
+
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_VERSION, bytearray(b'Z-Wave 4.05\x00\x01'))
+
     #oldstuff(protocol, remote)
 
     # 01 = SOF (Start Of Frame)
@@ -716,10 +761,10 @@ def main():
     # 21 = COMMAND_CLASS_CONTROLLER_REPLICATION
     # D6 = Checksum
 
-    call_command(protocol, remote, cmd.FUNC_ID_SERIAL_API_APPL_NODE_INFORMATION,  bytearray(b'\x01'), bytearray(b'\x01\x02\x01\x01\x21'), has_response=False)
+    #call_command(protocol, remote, cmd.FUNC_ID_SERIAL_API_APPL_NODE_INFORMATION,  bytearray(b'\x01'), bytearray(b'\x01\x02\x01\x01\x21'), has_response=False)
 
-    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO, bytearray(b'\x93\x16\x01\x02\x02\x01'),
-                 bytes([1]))
+    #call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO, bytearray(b'\x93\x16\x01\x02\x02\x01'),
+    #             bytes([1]))
 
 
     # openzwave says the node in arg1 is "controller node"?
@@ -727,8 +772,8 @@ def main():
     # arg1: dest node
     # arg2: tx options 0x11
     # arg3: return handling, 0 = no reply, 0x03 = has reply (actually, callback id)
-    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_NODE_INFORMATION, bytearray(b'\x03\x01'))
-    call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_NODE_INFORMATION, bytearray(b'\x01'), bytearray(b'\x01\x11\x07'), extra_frame)
+#    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_NODE_INFORMATION, bytearray(b'\x03\x01'))
+#    call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_NODE_INFORMATION, bytearray(b'\x01'), bytearray(b'\x01\x11\x07'), extra_frame)
 
 
     # manufacturer_specific get
@@ -740,11 +785,11 @@ def main():
     # ---
     # arg5: transmit options, default  TRANSMIT_OPTION_ACK | TRANSMIT_OPTION_NO_ROUTE = 0x11
     # arg6: callback-id (start with 0x21)
-    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x23\x01\x00\x56'))
-    call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), bytearray(b'\x01\x02\x72\x04\x11\x23'), extra_frame)
+    #extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x23\x01\x00\x56'))
+    #call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), bytearray(b'\x01\x02\x72\x04\x11\x23'), extra_frame)
 
     # openzwave says requires a callback-id at the end, but i'm not sure..?
-    call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NETWORK_UPDATE, bytearray(b'\x00'))
+    #call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NETWORK_UPDATE, bytearray(b'\x00'))
 
     # 01 = listening
     # 02 = node generic type, GENERIC_TYPE_STATIC_CONTROLLER
@@ -752,13 +797,13 @@ def main():
     # 01 = param length
     # 21 = COMMAND_CLASS_CONTROLLER_REPLICATION
 
-    call_command(protocol, remote, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES, bytearray(
-        b'\x05\x06\x01\x15\x04\x00\x00\x01\xfe\x83\xff\x88\xcf\x1f\x00\x00\xfb\x9f}\xa0g\x00\x80\x80\x00\x80\x86\x00\x00\x00\xe8s\x00\x00\x0e\x00\x00@\x1a\x00'))
+#    call_command(protocol, remote, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES, bytearray(
+#        b'\x05\x06\x01\x15\x04\x00\x00\x01\xfe\x83\xff\x88\xcf\x1f\x00\x00\xfb\x9f}\xa0g\x00\x80\x80\x00\x80\x86\x00\x00\x00\xe8s\x00\x00\x0e\x00\x00@\x1a\x00'))
 
     # openzwave says the node in arg1 is "controller node"?
-    call_command(protocol, remote, cmd.FUNC_ID_SERIAL_API_APPL_NODE_INFORMATION,  bytearray(b'\x01'), bytearray(b'\x01\x02\x01\x00'))
+#    call_command(protocol, remote, cmd.FUNC_ID_SERIAL_API_APPL_NODE_INFORMATION,  bytearray(b'\x01'), bytearray(b'\x01\x02\x01\x00'))
 
-    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_VERSION, bytearray(b'Z-Wave 4.05\x00\x01'))
+#    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_VERSION, bytearray(b'Z-Wave 4.05\x00\x01'))
 
     # openzwave says the node in arg1 is "controller node"?
     # BROKEN, see above. call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_NODE_INFORMATION, bytearray(b'\x01'))
@@ -780,16 +825,16 @@ def main():
     # ---
     # arg5: transmit options, default  TRANSMIT_OPTION_ACK | TRANSMIT_OPTION_NO_ROUTE = 0x11
     # arg6: callback-id (start with 0x21)
-    call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), bytearray(b'\x01\x02\x00\x00\x11\x21'), Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'!\x01\x004')))
+#    call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), bytearray(b'\x01\x02\x00\x00\x11\x21'), Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'!\x01\x004')))
 
     # basic/get
     # cmdclass COMMAND_CLASS_BASIC = 0x20
     # BasicCmd_Get	= 0x02, BasicCmd_Report	= 0x03
 
-    call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), bytearray(b'\x01\x02\x20\x02\x11\x22'), Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'"\x01\x004')))
+#    call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), bytearray(b'\x01\x02\x20\x02\x11\x22'), Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'"\x01\x004')))
 
-#    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
-#    call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([1]), extra_frame)
+    #extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
+    #call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([1]), extra_frame)
 
     # extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
     # call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([0x01]), extra_frame)
@@ -804,12 +849,22 @@ def main():
     # ---
     # arg5: transmit options, default  TRANSMIT_OPTION_ACK | TRANSMIT_OPTION_NO_ROUTE = 0x11
     # arg6: callback-id (start with 0x21)
-    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'#\x01\x00"'))
-    call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), bytearray(b'\x01\x02\x72\x04\x11\x23'), extra_frame)
+    #extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'#\x01\x00"'))
+    #call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), bytearray(b'\x01\x02\x72\x04\x11\x23'), extra_frame)
 
 
-    #import time
-    #time.sleep(10)
+    import time
+    time.sleep(5)
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_VERSION, bytearray(b'Z-Wave 4.05\x00\x01'))
+
+    frame = protocol.get_frame(block=False)
+    while frame:
+        handler = FrameHandler()
+        print("final RECV:", frame)
+        handler.handle_incoming_frame(frame)
+        time.sleep(1)
+        frame = protocol.get_frame(block=False)
+
     controller.close()
     sender.close()
 

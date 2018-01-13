@@ -97,6 +97,13 @@ commands = {
 
 cmd = Bunch(commands)
 
+def get_command_name(cmd_num):
+    for cmd in commands:
+        if commands.get(cmd) == cmd_num:
+            return cmd
+
+def hex_string(obj):
+    return ''.join('\\x{:02x}'.format(x) for x in obj).rstrip()
 
 class RawFrameProtocol(serial.threaded.Protocol):
     class State:
@@ -250,7 +257,7 @@ class Frame(SerialPacket):
 
     def __str__(self):
         type_str = "REQUEST" if self.frame_type == 0 else "RESPONSE"
-        return "<Frame[{}:{}]: {}>".format(type_str, self.func, bytearray(self.data))
+        return "<Frame[{}:{}({:#x})]: {}>".format(type_str, get_command_name(self.func), self.func, hex_string(bytearray(self.data)))
 
     @classmethod
     def parse(cls, frame_bytes):
@@ -576,6 +583,21 @@ class FrameHandler:
 
             print("application update, state {} ({}), node_id {}".format(state_name, node.state, node.node_id))
 
+        elif frame.func == cmd.FUNC_ID_ZW_SEND_NODE_INFORMATION:
+            if frame.frame_type == RESPONSE:
+                self.info.network_update_ok = frame.data[0] != 0
+
+                print("send node info OK: {}".format(self.info.network_update_ok))
+            else:
+                callback_id = frame.data[0]
+                err_code = frame.data[1]
+                # just open z wave treats 0 as failure, and != 0 as OK.
+                # contrary to send data...
+                # this is most likely incorrect.
+
+                print("additional REQUEST for FUNC_ID_ZW_SEND_NODE_INFORMATION {}".format(frame.data))
+                print("callback id {:#x}, err_code {}".format(callback_id, err_code))
+
         elif frame.func == cmd.FUNC_ID_ZW_REQUEST_NETWORK_UPDATE:
             self.info.network_update_ok = frame.data[0] != 0
 
@@ -585,7 +607,7 @@ class FrameHandler:
             if frame.frame_type == RESPONSE:
                 send_data_ok = frame.data[0] != 0
 
-                print("RESPONSE send data OK: {}".format(send_data_ok))
+                print("RESPONSE to send data OK: {}".format(send_data_ok))
             else:
                 callback_id = frame.data[0]
                 err_code = frame.data[1]
@@ -598,7 +620,7 @@ class FrameHandler:
                 # define TRANSMIT_COMPLETE_NOT_IDLE						0x03
                 # define TRANSMIT_COMPLETE_NOROUTE 						0x04
 
-                print("REQUEST send data {}".format(frame.data))
+                print("additional REQUEST sent us with data {}".format(frame.data))
                 print("callback id {:#x}, err_code {}, un1 {}, un2 {:#x}".format(callback_id, err_code, unknown1, unknown2))
 
         else:
@@ -606,7 +628,7 @@ class FrameHandler:
 
 
 
-def call_command(protocol, remote, command, expected_payload, command_data=None, extra_frame=None):
+def call_command(protocol, remote, command, expected_payload, command_data=None, extra_frame=None, has_response=True):
     handler = FrameHandler()
 
     frame = Frame(REQUEST, command, command_data)
@@ -619,17 +641,20 @@ def call_command(protocol, remote, command, expected_payload, command_data=None,
         assert frame2 == frame
         remote.write_frame(response_frame)
 
-    frame = protocol.get_frame(block=True)
-    print("RECV:", frame)
-    if command != cmd.FUNC_ID_ZW_GET_RANDOM and expected_payload != None:
-        assert frame == response_frame
-        pass
-    handler.handle_incoming_frame(frame)
+    if has_response:
+        frame = protocol.get_frame(block=True)
+        print("RECV:", frame)
+        if command != cmd.FUNC_ID_ZW_GET_RANDOM and expected_payload != None:
+            assert frame == response_frame
+            pass
+        handler.handle_incoming_frame(frame)
 
     if extra_frame:
         frame = protocol.get_frame(block=True)
         print("RECV<extra>:", frame)
         print("exp RECV<extra>:", extra_frame)
+        if frame != extra_frame:
+            print("WARNING: diff!!!")
         #assert frame == extra_frame
         handler.handle_incoming_frame(frame)
 
@@ -680,9 +705,65 @@ def main():
 
     #oldstuff(protocol, remote)
 
+    # 01 = SOF (Start Of Frame)
+    # 08 = 8 bytes length for this frame
+    # 00 = request
+    # 03 = FUNC_ID_SERIAL_API_APPL_NODE_INFORMATION
+    # 01 = listening /** not moving */
+    # 02 = node generic type, GENERIC_TYPE_STATIC_CONTROLLER
+    # 01 = node specific type, SPECIFIC_TYPE_PORTABLE_REMOTE_CONTROLLER
+    # 01 = param length
+    # 21 = COMMAND_CLASS_CONTROLLER_REPLICATION
+    # D6 = Checksum
+
+    call_command(protocol, remote, cmd.FUNC_ID_SERIAL_API_APPL_NODE_INFORMATION,  bytearray(b'\x01'), bytearray(b'\x01\x02\x01\x01\x21'), has_response=False)
+
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO, bytearray(b'\x93\x16\x01\x02\x02\x01'),
+                 bytes([1]))
+
+
+    # openzwave says the node in arg1 is "controller node"?
+
+    # arg1: dest node
+    # arg2: tx options 0x11
+    # arg3: return handling, 0 = no reply, 0x03 = has reply (actually, callback id)
+    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_NODE_INFORMATION, bytearray(b'\x03\x01'))
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_NODE_INFORMATION, bytearray(b'\x01'), bytearray(b'\x01\x11\x07'), extra_frame)
+
+
+    # manufacturer_specific get
+    # arg1: node
+    # arg2: 2 = len of package (cmdclass + command)
+    # ---
+    # arg3: cmd class id, 0x72 = man specifc.
+    # arg4: cmd get == 0x04
+    # ---
+    # arg5: transmit options, default  TRANSMIT_OPTION_ACK | TRANSMIT_OPTION_NO_ROUTE = 0x11
+    # arg6: callback-id (start with 0x21)
+    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x23\x01\x00\x56'))
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), bytearray(b'\x01\x02\x72\x04\x11\x23'), extra_frame)
+
     # openzwave says requires a callback-id at the end, but i'm not sure..?
     call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NETWORK_UPDATE, bytearray(b'\x00'))
 
+    # 01 = listening
+    # 02 = node generic type, GENERIC_TYPE_STATIC_CONTROLLER
+    # 01 = node specific type, SPECIFIC_TYPE_PC_CONTROLLER
+    # 01 = param length
+    # 21 = COMMAND_CLASS_CONTROLLER_REPLICATION
+
+    call_command(protocol, remote, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES, bytearray(
+        b'\x05\x06\x01\x15\x04\x00\x00\x01\xfe\x83\xff\x88\xcf\x1f\x00\x00\xfb\x9f}\xa0g\x00\x80\x80\x00\x80\x86\x00\x00\x00\xe8s\x00\x00\x0e\x00\x00@\x1a\x00'))
+
+    # openzwave says the node in arg1 is "controller node"?
+    call_command(protocol, remote, cmd.FUNC_ID_SERIAL_API_APPL_NODE_INFORMATION,  bytearray(b'\x01'), bytearray(b'\x01\x02\x01\x00'))
+
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_VERSION, bytearray(b'Z-Wave 4.05\x00\x01'))
+
+    # openzwave says the node in arg1 is "controller node"?
+    # BROKEN, see above. call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_NODE_INFORMATION, bytearray(b'\x01'))
+
+    #
 
     # define TRANSMIT_OPTION_ACK		 						0x01
     # define TRANSMIT_OPTION_LOW_POWER		   				0x02
@@ -692,9 +773,11 @@ def main():
 
     # noop/noop
     # arg1: node
-    # arg2: 2
+    # arg2: 2 = len of package (cmdclass + command)
+    # ---
     # arg3: cmd class id, 0x00 == NOOP.
     # arg4: 0 == NOOP
+    # ---
     # arg5: transmit options, default  TRANSMIT_OPTION_ACK | TRANSMIT_OPTION_NO_ROUTE = 0x11
     # arg6: callback-id (start with 0x21)
     call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), bytearray(b'\x01\x02\x00\x00\x11\x21'), Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'!\x01\x004')))
@@ -708,8 +791,22 @@ def main():
 #    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
 #    call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([1]), extra_frame)
 
-#    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
-#    call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([2]), extra_frame)
+    # extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
+    # call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([0x01]), extra_frame)
+
+
+    # manufacturer_specific get
+    # arg1: node
+    # arg2: 2 = len of package (cmdclass + command)
+    # ---
+    # arg3: cmd class id, 0x72 = man specifc.
+    # arg4: cmd get == 0x04
+    # ---
+    # arg5: transmit options, default  TRANSMIT_OPTION_ACK | TRANSMIT_OPTION_NO_ROUTE = 0x11
+    # arg6: callback-id (start with 0x21)
+    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'#\x01\x00"'))
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), bytearray(b'\x01\x02\x72\x04\x11\x23'), extra_frame)
+
 
     #import time
     #time.sleep(10)

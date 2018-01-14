@@ -194,3 +194,68 @@ get a send-response, status "pending execution", returns immediately. do not sen
 get a send-request, status "send executed" -- either ok or failed. this returns asynchronously.
 
 
+---
+FUNC_ID_ZW_GET_VERSION - response
+FUNC_ID_ZW_MEMORY_GET_ID - response
+FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES - response
+FUNC_ID_SERIAL_API_GET_CAPABILITIES - response
+FUNC_ID_ZW_GET_SUC_NODE_ID - response
+FUNC_ID_ZW_GET_RANDOM - response
+FUNC_ID_SERIAL_API_GET_INIT_DATA - response
+FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO- response
+FUNC_ID_ZW_REQUEST_NETWORK_UPDATE - response
+
+FUNC_ID_ZW_SEND_NODE_INFORMATION - response + request FUNC_ID_ZW_SEND_NODE_INFORMATION
+FUNC_ID_ZW_REQUEST_NODE_INFO- response + request FUNC_ID_ZW_APPLICATION_UPDATE
+
+FUNC_ID_ZW_SEND_DATA - response + request FUNC_ID_ZW_SEND_DATA
+    # arg1: dest node
+    # arg2: tx options 0x11
+    # arg3: return handling, 0 = no reply, 0x03 = has reply (actually, callback id)
+    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_NODE_INFORMATION, bytearray(b'\x03\x01'))
+
+    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
+
+FUNC_ID_SERIAL_API_APPL_NODE_INFORMATION -- no response? # maybe sent as a response to node information request from another?
+
+
+FUNC_ID_APPLICATION_COMMAND_HANDLER -- incoming data from zwave, perhaps unsolicited!
+
+entity state:
+ - on
+ - off
+
+entity certainty:
+ - verified
+ - unverified
+
+flow:
+ entity is on - verified
+ step 1: send off:
+   - send zw-command set off -> still on, but unverified
+   - rec zw-response (means command is queued for output on zwave device, but not sent)
+   - rec zw-request (means command has been sent)
+      -> set off, but still unverified
+ step 2: verify off
+   - send zw-command get state
+   - rec zw-response (means command is queued for output on zwave device, but not sent)
+   - rec zw-request (means command has been sent)
+   - rec incoming-zw report -> still off, but verified
+
+high application layer:
+  turn_off()
+  keeps track of current state and certainity per node. uses raw application layer.
+   -- network management
+   -- device communication
+
+  raw application level:
+    send_off(), read_state()
+    maps zw commands to reasonable actions, e.g. makes sure a get() receives a report(). uses session level
+    handles incoming msgs.
+
+    session level
+      send_with_response
+      send_with_res_and_req
+      dispatch_incoming_msg
+
+      session uses frame layer (checksum, ack) + transport layer (rå serie-kommunikation)

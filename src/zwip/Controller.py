@@ -11,7 +11,7 @@ import serial.tools.list_ports
 import serial.threaded
 
 def hex_string(obj):
-    return ''.join('\\x{:02x}'.format(x) for x in obj).rstrip()
+    return ''.join('\\x{:02x}'.format(x) for x in obj).rstrip() if obj else ''
 
 class RawFrameProtocol(serial.threaded.Protocol):
     class State:
@@ -364,22 +364,35 @@ class IncomingSerialPacket(object):
 
     @classmethod
     def from_frame(cls, frame):
-        if frame.func == cmd.FUNC_ID_ZW_GET_VERSION:
-            return GetVersionReplyPacket.from_frame(frame)
-        elif frame.func == cmd.FUNC_ID_ZW_MEMORY_GET_ID:
-            return GetControllerIdReplyPacket.from_frame(frame)
-        elif frame.func == cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES:
-            return GetControllerCapabilitiesReplyPacket.from_frame(frame)
-        elif frame.func == cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES:
-            return GetSerialApiCapabilitiesReplyPacket.from_frame(frame)
-        elif frame.func == cmd.FUNC_ID_ZW_GET_SUC_NODE_ID:
-            return GetSucNodeIdReplyPacket.from_frame(frame)
-        elif frame.func == cmd.FUNC_ID_SERIAL_API_GET_INIT_DATA:
-            return GetInitDataReplyPacket.from_frame(frame)
-        elif frame.func == cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO:
-            return GetNodeProtocolInfoReplyPacket.from_frame(frame)
+        if frame.frame_type == RESPONSE:
+            if frame.func == cmd.FUNC_ID_ZW_GET_VERSION:
+                return GetVersionReplyPacket.from_frame(frame)
+            elif frame.func == cmd.FUNC_ID_ZW_MEMORY_GET_ID:
+                return GetControllerIdReplyPacket.from_frame(frame)
+            elif frame.func == cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES:
+                return GetControllerCapabilitiesReplyPacket.from_frame(frame)
+            elif frame.func == cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES:
+                return GetSerialApiCapabilitiesReplyPacket.from_frame(frame)
+            elif frame.func == cmd.FUNC_ID_ZW_GET_SUC_NODE_ID:
+                return GetSucNodeIdReplyPacket.from_frame(frame)
+            elif frame.func == cmd.FUNC_ID_SERIAL_API_GET_INIT_DATA:
+                return GetInitDataReplyPacket.from_frame(frame)
+            elif frame.func == cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO:
+                return GetNodeProtocolInfoReplyPacket.from_frame(frame)
+            elif frame.func in [cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, cmd.FUNC_ID_ZW_SEND_NODE_INFORMATION, cmd.FUNC_ID_ZW_SEND_DATA, cmd.FUNC_ID_ZW_REQUEST_NETWORK_UPDATE]:
+                return TransactionStartedReplyPacket.from_frame(frame)
         else:
-            print("cannot handle frame {}".format(frame))
+            if frame.func == cmd.FUNC_ID_ZW_SEND_DATA:
+                return AsyncSendDataPacket.from_frame(frame)
+            elif frame.func == cmd.FUNC_ID_ZW_SEND_NODE_INFORMATION:
+                return AsyncSendNodeInformationPacket.from_frame(frame)
+            elif frame.func == cmd.FUNC_ID_ZW_APPLICATION_UPDATE:
+                return AsyncUpdateNodeInformationPacket.from_frame(frame)
+            elif frame.func == cmd.FUNC_ID_APPLICATION_COMMAND_HANDLER:
+                return AsyncUpdateReceivedDataPacket.from_frame(frame)
+
+        print("WARNING: UNHANDLED RESPONSE: {}".format(frame))
+        return None
 
 class GetVersionReplyPacket(IncomingSerialPacket):
     LibraryTypes = [
@@ -400,7 +413,7 @@ class GetVersionReplyPacket(IncomingSerialPacket):
         print("Created:", self)
 
     def __repr__(self):
-        return ("<GetVersionReplyPacket(library_version='{}', library_type={})>".format(self.library_version, self.library_type))
+        return "<GetVersionReplyPacket(library_version='{}', library_type={})>".format(self.library_version, self.library_type)
 
     @classmethod
     def from_frame(cls, frame):
@@ -416,7 +429,7 @@ class GetControllerIdReplyPacket(IncomingSerialPacket):
         print("Created:", self)
 
     def __repr__(self):
-        return ("<GetControllerIdReplyPacket(home_id={}, node_id={})>".format(self.home_id, self.node_id))
+        return "<GetControllerIdReplyPacket(home_id={}, node_id={})>".format(self.home_id, self.node_id)
 
     @classmethod
     def from_frame(cls, frame):
@@ -454,8 +467,8 @@ class GetControllerCapabilitiesReplyPacket(IncomingSerialPacket):
         print("Created:", self)
 
     def __repr__(self):
-        return ("<GetControllerCapabilitiesReplyPacket(secondary={}, on_other_network={}, sis={}, real_primary={}, suc={})>".
-            format(self.secondary, self.on_other_network, self.sis, self.real_primary, self.suc))
+        return "<GetControllerCapabilitiesReplyPacket(secondary={}, on_other_network={}, sis={}, real_primary={}, suc={})>".format(
+            self.secondary, self.on_other_network, self.sis, self.real_primary, self.suc)
 
     @classmethod
     def from_frame(cls, frame):
@@ -474,11 +487,11 @@ class GetSerialApiCapabilitiesReplyPacket(IncomingSerialPacket):
         self.product_id = product_id
         self.serial_api_funcs_bitmask = serial_api_funcs_bitmask
         print("Created:", self)
-        self.print_it()
+        #self.print_it()
 
     def __repr__(self):
-        return ("<GetSerialApiCapabilitiesReplyPacket(serial_version_major={}, serial_version_minor={}, manufacturer_id={:#06x}, product_type={:#06x}, product_id={:#06x}, serial_api_funcs_bitmask={:#x})>".
-            format(self.serial_version_major, self.serial_version_minor, self.manufacturer_id, self.product_type, self.product_id, self.serial_api_funcs_bitmask))
+        return "<GetSerialApiCapabilitiesReplyPacket(serial_version_major={}, serial_version_minor={}, manufacturer_id={:#06x}, product_type={:#06x}, product_id={:#06x}, serial_api_funcs_bitmask={:#x})>".format(
+            self.serial_version_major, self.serial_version_minor, self.manufacturer_id, self.product_type, self.product_id, self.serial_api_funcs_bitmask)
 
     def print_it(self):
         serial_version = "{}.{}".format(self.serial_version_major, self.serial_version_minor)
@@ -518,7 +531,7 @@ class GetSucNodeIdReplyPacket(IncomingSerialPacket):
         print("Created:", self)
 
     def __repr__(self):
-        return ("<GetSucNodeIdReplyPacket(suc_node_id={})>".format(self.suc_node_id))
+        return "<GetSucNodeIdReplyPacket(suc_node_id={})>".format(self.suc_node_id)
 
     @classmethod
     def from_frame(cls, frame):
@@ -535,8 +548,8 @@ class GetInitDataReplyPacket(IncomingSerialPacket):
         self.print_it()
 
     def __repr__(self):
-        return ("<GetInitDataReplyPacket(init_version={}, init_caps={:#x}, nodes_bitmask={:#x})>".
-            format(self.init_version, self.init_caps, self.nodes_bitmask))
+        return "<GetInitDataReplyPacket(init_version={}, init_caps={:#x}, nodes_bitmask={:#x})>".format(
+            self.init_version, self.init_caps, self.nodes_bitmask)
 
     def print_it(self):
         print("GetInitDataReplyPacket nodes: {}".format(self.nodes_bitmask))
@@ -575,8 +588,8 @@ class GetNodeProtocolInfoReplyPacket(IncomingSerialPacket):
         print("Created:", self)
 
     def __repr__(self):
-        return ("<GetNodeProtocolInfoReplyPacket(basic_class={:#04x}, generic_class={:#04x}, specific_class={:#04x}, version={}, is_listening={}, is_routing={}, is_secure={}, max_baud={})>".format(
-            self.basic_class, self.generic_class, self.specific_class, self.version, self.is_listening, self.is_routing, self.is_secure, self.max_baud))
+        return "<GetNodeProtocolInfoReplyPacket(basic_class={:#04x}, generic_class={:#04x}, specific_class={:#04x}, version={}, is_listening={}, is_routing={}, is_secure={}, max_baud={})>".format(
+            self.basic_class, self.generic_class, self.specific_class, self.version, self.is_listening, self.is_routing, self.is_secure, self.max_baud)
 
     @classmethod
     def from_frame(cls, frame):
@@ -609,112 +622,144 @@ class GetNodeProtocolInfoReplyPacket(IncomingSerialPacket):
 
         return cls(basic_class, generic_class, specific_class, version, is_listening, is_routing, is_secure, max_baud)
 
-controller_info = ControllerInfo()
-class FrameHandler:
-    def __init__(self):
-        self.info = controller_info
+class TransactionStartedReplyPacket(IncomingSerialPacket):
+    def __init__(self, func, request_successful):
+        self.func = func
+        self.request_successful = request_successful
+        print("Created:", self)
 
-    def handle_incoming_frame(self, frame):
-        inc_packet = IncomingSerialPacket.from_frame(frame)
+    def __repr__(self):
+        return "<TransactionStartedReplyPacket(func={:#0x}, request_successful={})>".format(self.func, self.request_successful)
 
-        print("inc packet is {}".format(inc_packet))
+    @classmethod
+    def from_frame(cls, frame):
+        func = frame.func
+        request_successful = frame.data[0] != 0
+        return cls(func, request_successful)
 
-        if frame.func == cmd.FUNC_ID_ZW_REQUEST_NODE_INFO:
-            request_successful = frame.data[0] != 0
-            assert request_successful
+class AsyncSendDataPacket(IncomingSerialPacket):
+    def __init__(self, callback_id, err_code):
+        self.callback_id = callback_id
+        self.err_code = err_code
+        print("Created:", self)
 
-            print("request node info OK: {}".format(request_successful))
+    def __repr__(self):
+        return "<AsyncSendDataPacket(callback_id={}, err_code={})>".format(self.callback_id, self.err_code)
 
-        elif frame.func == cmd.FUNC_ID_ZW_APPLICATION_UPDATE:
-            node = Node()
-            node.state = frame.data[0]
-            node.node_id = frame.data[1]
-            len_rest = frame.data[2]
-            if len_rest > 0:
-                basic_class = frame.data[3]
-                generic_class = frame.data[4]
-                specific_class = frame.data[5]
-                cmd_classes = frame.data[6:len_rest+3] # probably not correct...
-                print("app update: {} {} {}, {}".format(basic_class, generic_class, specific_class, cmd_classes))
+    @classmethod
+    def from_frame(cls, frame):
+        callback_id = frame.data[0]
+        err_code = frame.data[1]
+        unknown1 = frame.data[2]
+        unknown2 = frame.data[3]
+        # error codes:
+        # define TRANSMIT_COMPLETE_OK	  						0x00
+        # define TRANSMIT_COMPLETE_NO_ACK	  					0x01
+        # define TRANSMIT_COMPLETE_FAIL							0x02
+        # define TRANSMIT_COMPLETE_NOT_IDLE						0x03
+        # define TRANSMIT_COMPLETE_NOROUTE 						0x04
 
-            state_name = "UNKNOWN_STATE"
-            for name, state in node_update_states.items():
-                if state == node.state:
-                    state_name = name
+        print("AsyncSendDataPacket unknown1 {:#x}, unknown2 {:#x}".format(unknown1, unknown2))
+        return cls(callback_id, err_code)
 
-            print("application update, data: {}".format(frame.data))
-            print("application update, state {} ({}), node_id {}, len rest {}".format(state_name, node.state, node.node_id, len_rest))
+class AsyncSendNodeInformationPacket(IncomingSerialPacket):
+    def __init__(self, callback_id, err_code):
+        self.callback_id = callback_id
+        self.err_code = err_code
+        print("Created:", self)
 
-        elif frame.func == cmd.FUNC_ID_ZW_SEND_NODE_INFORMATION:
-            if frame.frame_type == RESPONSE:
-                self.info.network_update_ok = frame.data[0] != 0
+    def __repr__(self):
+        return "<AsyncSendNodeInformationPacket(callback_id={}, err_code={})>".format(self.callback_id, self.err_code)
 
-                print("send node info OK: {}".format(self.info.network_update_ok))
-            else:
-                callback_id = frame.data[0]
-                err_code = frame.data[1]
-                # just open z wave treats 0 as failure, and != 0 as OK.
-                # contrary to send data...
-                # this is most likely incorrect.
+    @classmethod
+    def from_frame(cls, frame):
+        callback_id = frame.data[0]
+        err_code = frame.data[1]
+        # error codes:
+        # define TRANSMIT_COMPLETE_OK	  						0x00
+        # define TRANSMIT_COMPLETE_NO_ACK	  					0x01
+        # define TRANSMIT_COMPLETE_FAIL							0x02
+        # define TRANSMIT_COMPLETE_NOT_IDLE						0x03
+        # define TRANSMIT_COMPLETE_NOROUTE 						0x04
 
-                print("additional REQUEST for FUNC_ID_ZW_SEND_NODE_INFORMATION {}".format(frame.data))
-                print("callback id {:#x}, err_code {}".format(callback_id, err_code))
+        return cls(callback_id, err_code)
 
-        elif frame.func == cmd.FUNC_ID_ZW_REQUEST_NETWORK_UPDATE:
-            self.info.network_update_ok = frame.data[0] != 0
+class AsyncUpdateNodeInformationPacket(IncomingSerialPacket):
+    def __init__(self, status, node_id, basic_class, generic_class, specific_class, cmd_classes):
+        self.status = status
+        self.node_id = node_id
+        self.basic_class = basic_class
+        self.generic_class = generic_class
+        self.specific_class = specific_class
+        self.cmd_classes = cmd_classes
+        print("Created:", self)
+        self.print_it()
 
-            print("network update state OK: {}".format(self.info.network_update_ok))
+    def __repr__(self):
+        return "<AsyncUpdateNodeInformationPacket(status={:#04x}, node_id={}, basic_class={:#04x}, generic_class={:#04x}, specific_class={:#04x}, cmd_classes={})>".format(
+            self.status, self.node_id, self.basic_class, self.generic_class, self.specific_class, hex_string(self.cmd_classes))
 
-        elif frame.func == cmd.FUNC_ID_APPLICATION_COMMAND_HANDLER:
-            status = frame.data[0]
-            node_id = frame.data[1]
-            msg_len = frame.data[2]
+    def print_it(self):
+        state_name = "UNKNOWN_STATE"
+        for name, status in node_update_states.items():
+            if status == self.status:
+                state_name = name
+
+        print("AsyncUpdateNodeInformationPacket status: {}({:#0x}, node {})".format(name, self.status, self.node_id))
+
+    @classmethod
+    def from_frame(cls, frame):
+        status = frame.data[0]
+        # NOTE: if status is failed, then we can't trust node id... or..?
+        node_id = frame.data[1]
+        msg_len = frame.data[2]
+
+        if msg_len != len(frame.data) - 3:
+            print("ERROR: incorrect length: {}, should be {}".format(msg_len, len(frame.data) - 3))
+
+        if msg_len > 0:
+            basic_class = frame.data[3]
+            generic_class = frame.data[4]
+            specific_class = frame.data[5]
+            cmd_classes = frame.data[6:]
+        else:
+            basic_class = 0
+            generic_class = 0
+            specific_class = 0
+            cmd_classes = None
+
+        return cls(status, node_id, basic_class, generic_class, specific_class, cmd_classes)
+
+class AsyncUpdateReceivedDataPacket(IncomingSerialPacket):
+    def __init__(self, status, node_id, packet):
+        self.status = status
+        self.node_id = node_id
+        self.packet = packet
+        print("Created:", self)
+
+    def __repr__(self):
+        return "<AsyncUpdateReceivedDataPacket(status={:#04x}, node_id={}, packet={})>".format(
+            self.status, self.node_id, self.packet)
+
+    @classmethod
+    def from_frame(cls, frame):
+        status = frame.data[0]
+        node_id = frame.data[1]
+        msg_len = frame.data[2]
+        if msg_len != len(frame.data) - 3:
+            print("ERROR: incorrect length: {}, should be {}".format(msg_len, len(frame.data) - 3))
+
+        if msg_len > 0:
             cmd_class = frame.data[3]
             cmd_num = frame.data[4]
             cmd_data = frame.data[5:]
-
-            if msg_len != len(cmd_data) + 2:
-                print("ERROR: incorrect len: {}, should be {}".format(msg_len, len(cmd_data) + 2))
-
             packet = ZWavePacket(node_id, cmd_class, cmd_num, cmd_data)
+        else:
+            packet= None
 
-            print("got app BACK: status {:#x}, node {}, len {}, class {:#x}, cmd {:#x}".format(status, node_id, msg_len, cmd_class, cmd_num))
-            print("app BACK cmd data: type {} len {}".format(type(cmd_data), len(cmd_data)))
-            print("app BACK cmd data: content {} ".format(cmd_data))
-            if cmd_data:
-                print("got a value")
-            else:
-                print("no value")
-            print("got FUNC_ID_APPLICATION_COMMAND_HANDLER: status {}, packet: {}".format(status, packet))
-
-        elif frame.func == cmd.FUNC_ID_ZW_SEND_DATA:
-            if frame.frame_type == RESPONSE:
-                send_data_ok = frame.data[0] != 0
-
-                print("RESPONSE to send data OK: {}".format(send_data_ok))
-            else:
-                callback_id = frame.data[0]
-                err_code = frame.data[1]
-                unknown1 = frame.data[2]
-                unknown2 = frame.data[3]
-                #error codes:
-                # define TRANSMIT_COMPLETE_OK	  						0x00
-                # define TRANSMIT_COMPLETE_NO_ACK	  					0x01
-                # define TRANSMIT_COMPLETE_FAIL							0x02
-                # define TRANSMIT_COMPLETE_NOT_IDLE						0x03
-                # define TRANSMIT_COMPLETE_NOROUTE 						0x04
-
-                print("additional REQUEST sent us with data {}".format(frame.data))
-                print("callback id {:#x}, err_code {}, un1 {}, un2 {:#x}".format(callback_id, err_code, unknown1, unknown2))
-
-        elif not inc_packet:
-            print("unknown frame to handle: {}".format(frame))
-
-
+        return cls(status, node_id, packet)
 
 def call_command(protocol, remote, command, expected_payload, command_data=None, extra_frame=None, has_response=True):
-    handler = FrameHandler()
-
     frame = Frame(REQUEST, command, command_data)
     print("SEND:", frame)
     protocol.write_frame(frame)
@@ -731,7 +776,8 @@ def call_command(protocol, remote, command, expected_payload, command_data=None,
         if command != cmd.FUNC_ID_ZW_GET_RANDOM and expected_payload != None:
             #assert frame == response_frame
             pass
-        handler.handle_incoming_frame(frame)
+        inc_packet = IncomingSerialPacket.from_frame(frame)
+        print("RECV-parsed:", inc_packet)
 
     if extra_frame:
         frame = protocol.get_frame(block=True)
@@ -740,7 +786,8 @@ def call_command(protocol, remote, command, expected_payload, command_data=None,
         if frame != extra_frame:
             print("WARNING: diff!!!")
         #assert frame == extra_frame
-        handler.handle_incoming_frame(frame)
+        inc_packet = IncomingSerialPacket.from_frame(frame)
+        print("RECV<extra>-parsed:", inc_packet)
 
 
 def oldstuff(protocol, remote):
@@ -771,11 +818,7 @@ class ExpectedReply(Enum):
     id_request_callback = 4
 
 def create_send_payload(zwpacket, callback_id, transmit_options=DEFAULT_TRANSMIT_OPTIONS):
-    print("{} type {}".format(bytes([callback_id]), type(bytes([callback_id]))))
-    apa = bytes([callback_id]) + bytes([transmit_options])
-    print("apa", apa, "type", type(apa))
     payload_bytes = zwpacket.as_bytes() + bytes([transmit_options, callback_id])
-    print("type {} val {}".format(type(payload_bytes), payload_bytes))
     return payload_bytes
 
 def main():
@@ -791,6 +834,9 @@ def main():
     controller.open(port)
 
     protocol = controller.protocol
+
+    # openzwave says requires a callback-id at the end, but i'm not sure..?
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NETWORK_UPDATE, bytearray(b'\x00'))
 
     oldstuff(protocol, remote)
 
@@ -863,8 +909,6 @@ def main():
     #extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x23\x01\x00\x56'))
     #call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), bytearray(b'\x01\x02\x72\x04\x11\x23'), extra_frame)
 
-    # openzwave says requires a callback-id at the end, but i'm not sure..?
-    #call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NETWORK_UPDATE, bytearray(b'\x00'))
 
     # 01 = listening
     # 02 = node generic type, GENERIC_TYPE_STATIC_CONTROLLER
@@ -898,8 +942,8 @@ def main():
 
 #    call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), bytearray(b'\x01\x02\x20\x02\x11\x22'), Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'"\x01\x004')))
 
-    #extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
-    #call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([1]), extra_frame)
+    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([1]), extra_frame)
 
     # extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_APPLICATION_UPDATE, bytearray(b'\x81\x00\x00'))
     # call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([0x01]), extra_frame)
@@ -929,11 +973,11 @@ def main():
                  extra_frame)
     call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_VERSION, bytearray(b'Z-Wave 4.05\x00\x01'))
 
-    frame = protocol.get_frame(block=False)
+    frame = protocol.get_frame(block=True)
     while frame:
-        handler = FrameHandler()
         print("final RECV:", frame)
-        handler.handle_incoming_frame(frame)
+        inc_packet = IncomingSerialPacket.from_frame(frame)
+        print("final RECV-parsed:", inc_packet)
         time.sleep(1)
 
         send_payload = create_send_payload(packet, 0x25)

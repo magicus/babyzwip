@@ -132,7 +132,7 @@ class SimplePacket(SerialPacket):
 
             frame_type = frame_byte
             return cls(frame_type)
-        except IndexError as e:
+        except IndexError:
             raise InvalidFrame('Frame too short')
 
     def as_bytes(self):
@@ -366,6 +366,18 @@ class IncomingSerialPacket(object):
     def from_frame(cls, frame):
         if frame.func == cmd.FUNC_ID_ZW_GET_VERSION:
             return GetVersionReplyPacket.from_frame(frame)
+        elif frame.func == cmd.FUNC_ID_ZW_MEMORY_GET_ID:
+            return GetControllerIdReplyPacket.from_frame(frame)
+        elif frame.func == cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES:
+            return GetControllerCapabilitiesReplyPacket.from_frame(frame)
+        elif frame.func == cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES:
+            return GetSerialApiCapabilitiesReplyPacket.from_frame(frame)
+        elif frame.func == cmd.FUNC_ID_ZW_GET_SUC_NODE_ID:
+            return GetSucNodeIdReplyPacket.from_frame(frame)
+        elif frame.func == cmd.FUNC_ID_SERIAL_API_GET_INIT_DATA:
+            return GetInitDataReplyPacket.from_frame(frame)
+        elif frame.func == cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO:
+            return GetNodeProtocolInfoReplyPacket.from_frame(frame)
         else:
             print("cannot handle frame {}".format(frame))
 
@@ -388,7 +400,7 @@ class GetVersionReplyPacket(IncomingSerialPacket):
         print("Created:", self)
 
     def __repr__(self):
-        return ("<GetVersionReplyPacket(library_version='{}', library_type={}>".format(self.library_version, self.library_type))
+        return ("<GetVersionReplyPacket(library_version='{}', library_type={})>".format(self.library_version, self.library_type))
 
     @classmethod
     def from_frame(cls, frame):
@@ -397,7 +409,205 @@ class GetVersionReplyPacket(IncomingSerialPacket):
 
         return cls(library_version, library_type)
 
+class GetControllerIdReplyPacket(IncomingSerialPacket):
+    def __init__(self, home_id, node_id):
+        self.home_id = home_id
+        self.node_id = node_id
+        print("Created:", self)
 
+    def __repr__(self):
+        return ("<GetControllerIdReplyPacket(home_id={}, node_id={})>".format(self.home_id, self.node_id))
+
+    @classmethod
+    def from_frame(cls, frame):
+        home_id = int.from_bytes(frame.data[0:4], 'big')
+        node_id = frame.data[4]
+
+        return cls(home_id, node_id)
+
+
+class PacketBits2(ctypes.LittleEndianStructure):
+    _pack_ = 1
+    _fields_ = [
+        ("secondary", ctypes.c_ubyte, 1),
+        ("on_other_network", ctypes.c_ubyte, 1),
+        ("sis", ctypes.c_ubyte, 1),
+        ("real_primary", ctypes.c_ubyte, 1),
+        ("suc", ctypes.c_ubyte, 1),
+        ("unknown1", ctypes.c_ubyte, 1),
+        ("unknown2", ctypes.c_ubyte, 1),
+        ("unknown3", ctypes.c_ubyte, 1),
+    ]
+
+class ControllerCapabilitiesBitfield2(ctypes.Union):
+    _anonymous_ = ("bits",)
+    _fields_ = [("bits", PacketBits2),
+                ("binary_data", ctypes.c_ubyte)]
+
+class GetControllerCapabilitiesReplyPacket(IncomingSerialPacket):
+    def __init__(self, secondary, on_other_network, sis, real_primary, suc):
+        self.secondary = secondary
+        self.on_other_network = on_other_network
+        self.sis = sis
+        self.real_primary = real_primary
+        self.suc = suc
+        print("Created:", self)
+
+    def __repr__(self):
+        return ("<GetControllerCapabilitiesReplyPacket(secondary={}, on_other_network={}, sis={}, real_primary={}, suc={})>".
+            format(self.secondary, self.on_other_network, self.sis, self.real_primary, self.suc))
+
+    @classmethod
+    def from_frame(cls, frame):
+        packet = ControllerCapabilitiesBitfield2()
+        packet.binary_data = frame.data[0]
+
+        return cls(packet.bits.secondary, packet.bits.on_other_network, packet.bits.sis, packet.bits.real_primary,
+              packet.bits.suc)
+
+class GetSerialApiCapabilitiesReplyPacket(IncomingSerialPacket):
+    def __init__(self, serial_version_major, serial_version_minor, manufacturer_id, product_type, product_id, serial_api_funcs_bitmask):
+        self.serial_version_major = serial_version_major
+        self.serial_version_minor = serial_version_minor
+        self.manufacturer_id = manufacturer_id
+        self.product_type = product_type
+        self.product_id = product_id
+        self.serial_api_funcs_bitmask = serial_api_funcs_bitmask
+        print("Created:", self)
+        self.print_it()
+
+    def __repr__(self):
+        return ("<GetSerialApiCapabilitiesReplyPacket(serial_version_major={}, serial_version_minor={}, manufacturer_id={:#06x}, product_type={:#06x}, product_id={:#06x}, serial_api_funcs_bitmask={:#x})>".
+            format(self.serial_version_major, self.serial_version_minor, self.manufacturer_id, self.product_type, self.product_id, self.serial_api_funcs_bitmask))
+
+    def print_it(self):
+        serial_version = "{}.{}".format(self.serial_version_major, self.serial_version_minor)
+        print("Serial API Version {}".format(serial_version))
+
+        for cmd_name in commands:
+            cmd_num = commands.get(cmd_name)
+            cmd_offset = cmd_num - 1
+            is_cmd = self.serial_api_funcs_bitmask & (1 << cmd_offset) != 0
+            if is_cmd:
+                print("has {} ({})".format(cmd_name, cmd_num))
+            else:
+                print("NOT {} ({})".format(cmd_name, cmd_num))
+
+        all_cmd_nums = commands.values()
+        for i in range(0, 255):
+            is_cmd = self.serial_api_funcs_bitmask & (1 << i) != 0
+            if (i not in all_cmd_nums) and is_cmd:
+                print("UNKNOWN cmd value {:#x}".format(i))
+
+    @classmethod
+    def from_frame(cls, frame):
+        serial_version_major = frame.data[0]
+        serial_version_minor = frame.data[1]
+
+        manufacturer_id = int.from_bytes(frame.data[2:4], 'big')
+        product_type = int.from_bytes(frame.data[4:6], 'big')
+        product_id = int.from_bytes(frame.data[6:8], 'big')
+
+        serial_api_funcs_bitmask = int.from_bytes(frame.data[8:40], 'little')
+
+        return cls(serial_version_major, serial_version_minor, manufacturer_id, product_type, product_id, serial_api_funcs_bitmask)
+
+class GetSucNodeIdReplyPacket(IncomingSerialPacket):
+    def __init__(self, suc_node_id):
+        self.suc_node_id = suc_node_id
+        print("Created:", self)
+
+    def __repr__(self):
+        return ("<GetSucNodeIdReplyPacket(suc_node_id={})>".format(self.suc_node_id))
+
+    @classmethod
+    def from_frame(cls, frame):
+        suc_node_id = frame.data[0]
+
+        return cls(suc_node_id)
+
+class GetInitDataReplyPacket(IncomingSerialPacket):
+    def __init__(self, init_version, init_caps, nodes_bitmask):
+        self.init_version = init_version
+        self.init_caps = init_caps
+        self.nodes_bitmask = nodes_bitmask
+        print("Created:", self)
+        self.print_it()
+
+    def __repr__(self):
+        return ("<GetInitDataReplyPacket(init_version={}, init_caps={:#x}, nodes_bitmask={:#x})>".
+            format(self.init_version, self.init_caps, self.nodes_bitmask))
+
+    def print_it(self):
+        print("GetInitDataReplyPacket nodes: {}".format(self.nodes_bitmask))
+        for i in range(0, 232):
+            is_node = self.nodes_bitmask & (1 << i) != 0
+            node_num = i + 1
+            if is_node:
+                print("Has node at {}".format(node_num))
+
+    @classmethod
+    def from_frame(cls, frame):
+        init_version = frame.data[0]
+        init_caps = frame.data[1]
+
+        bitfield_len = frame.data[2]
+        assert bitfield_len == 29  # 232 nodes / 8
+        nodes_bitmask = int.from_bytes(frame.data[3:32], 'little')
+        unknown_init_ver2 = frame.data[32]
+        unknown_init_cap2 = frame.data[33]
+
+        print("GetInitDataReplyPacket unknown, perhahps init_ver {}, init_cap {}".format(unknown_init_ver2,
+                                                                  unknown_init_cap2))
+
+        return cls(init_version, init_caps, nodes_bitmask)
+
+class GetNodeProtocolInfoReplyPacket(IncomingSerialPacket):
+    def __init__(self, basic_class, generic_class, specific_class, version, is_listening, is_routing, is_secure, max_baud):
+        self.basic_class = basic_class
+        self.generic_class = generic_class
+        self.specific_class = specific_class
+        self.version = version
+        self.is_listening = is_listening
+        self.is_routing = is_routing
+        self.is_secure = is_secure
+        self.max_baud = max_baud
+        print("Created:", self)
+
+    def __repr__(self):
+        return ("<GetNodeProtocolInfoReplyPacket(basic_class={:#04x}, generic_class={:#04x}, specific_class={:#04x}, version={}, is_listening={}, is_routing={}, is_secure={}, max_baud={})>".format(
+            self.basic_class, self.generic_class, self.specific_class, self.version, self.is_listening, self.is_routing, self.is_secure, self.max_baud))
+
+    @classmethod
+    def from_frame(cls, frame):
+        caps = frame.data[0]
+        unknown = frame.data[2]
+        security = frame.data[1]
+        basic_class = frame.data[3]
+        generic_class = frame.data[4]
+        specific_class = frame.data[5]
+
+        # NOTE: generic class == 0 ==> non-existant node.
+
+        is_listening = caps & 0x80 != 0
+        is_routing = caps & 0x40 != 0
+
+        # 00111000 is baud rate mask (0x38)
+        if caps & 0x38 == 0x10:
+            max_baud = 40000
+        else:
+            max_baud = 9600
+
+        # 00000111 is version mask
+        version = (caps & 0x07) + 1
+
+        # SecurityFlag_Security = 0x01
+        # More data is available here when implementing security.
+        is_secure = security & 0x01 != 0
+
+        print("GetNodeProtocolInfoReplyPacket unknown {}, security {}".format(unknown, security))
+
+        return cls(basic_class, generic_class, specific_class, version, is_listening, is_routing, is_secure, max_baud)
 
 controller_info = ControllerInfo()
 class FrameHandler:
@@ -409,135 +619,7 @@ class FrameHandler:
 
         print("inc packet is {}".format(inc_packet))
 
-        if frame.func == cmd.FUNC_ID_ZW_GET_VERSION:
-            self.info.library_version = frame.data[0:12].decode('ascii').rstrip(' \0')
-            self.info.library_type = frame.data[12]
-
-            print("we got {} {}".format(self.info.library_version,
-                                        self.info.LibraryTypes[self.info.library_type]))
-
-        elif frame.func == cmd.FUNC_ID_ZW_MEMORY_GET_ID:
-            self.info.home_id = int.from_bytes(frame.data[0:4], 'big')
-            self.info.node_id = frame.data[4]
-
-            print("we got ID {:#04x} {}".format(self.info.home_id, self.info.node_id))
-
-        elif frame.func == cmd.FUNC_ID_ZW_GET_CONTROLLER_CAPABILITIES:
-            packet = ControllerCapabilitiesBitfield()
-            packet.binary_data = frame.data[0]
-
-            print(packet.bits.secondary, packet.bits.on_other_network, packet.bits.sis, packet.bits.real_primary,
-                  packet.bits.suc, packet.bits.unknown1)
-
-        elif frame.func == cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES:
-            self.info.serial_version_major = frame.data[0]
-            self.info.serial_version_minor = frame.data[1]
-            self.info.serial_version = "{}.{}".format(self.info.serial_version_major, self.info.serial_version_minor)
-
-            self.info.manufacturer_id = int.from_bytes(frame.data[2:4], 'big')
-            self.info.product_type = int.from_bytes(frame.data[4:6], 'big')
-            self.info.product_id = int.from_bytes(frame.data[6:8], 'big')
-
-            self.info.serial_api_funcs_bitmask = int.from_bytes(frame.data[8:40], 'little')
-
-            print("Serial API Version {}".format(self.info.serial_version))
-            print("Manufacturer ID {:#06x}".format(self.info.manufacturer_id))
-            print("Product Type {:#06x}".format(self.info.product_type))
-            print("Product ID {:#06x}".format(self.info.product_id))
-
-            for cmd_name in commands:
-                cmd_num = commands.get(cmd_name)
-                cmd_offset = cmd_num - 1
-                is_cmd = self.info.serial_api_funcs_bitmask & (1 << cmd_offset) != 0
-                if is_cmd:
-                    print("has {} ({})".format(cmd_name, cmd_num))
-                else:
-                    print("NOT {} ({})".format(cmd_name, cmd_num))
-
-            all_cmd_nums = commands.values()
-            for i in range(0, 255):
-                is_cmd = self.info.serial_api_funcs_bitmask & (1 << i) != 0
-                if (i not in all_cmd_nums) and is_cmd:
-                    print("UNKNOWN cmd value {:#x}".format(i))
-
-        elif frame.func == cmd.FUNC_ID_ZW_GET_SUC_NODE_ID:
-            self.info.suc_node_id = frame.data[0]
-
-            print("SUC node id {}".format(self.info.suc_node_id))
-
-        elif frame.func == cmd.FUNC_ID_ZW_GET_VIRTUAL_NODES:
-            self.info.virtual_nodes_bitmask = int.from_bytes(frame.data[0:29], 'little')
-
-            #assert len(frame.data) == 29
-
-            print("virtual nodes: {}".format(self.info.virtual_nodes_bitmask))
-            for i in range(0, 232):
-                is_node = self.info.virtual_nodes_bitmask & (1 << i) != 0
-                if is_node:
-                    print("Has virtual node at {}".format(i))
-
-        elif frame.func == cmd.FUNC_ID_ZW_GET_RANDOM:
-            unknown1 = frame.data[0] # random RESPONSE = 1 ?
-            random_len = frame.data[1]
-
-            self.info.random = frame.data[2:]
-            assert random_len == len(self.info.random)
-
-            print("Random returned {}, unkn1 {}".format(self.info.random, unknown1))
-
-        elif frame.func == cmd.FUNC_ID_SERIAL_API_GET_INIT_DATA:
-            self.info.init_version = frame.data[0]
-            self.info.init_caps = frame.data[1]
-
-            bitfield_len = frame.data[2]
-            assert bitfield_len == 29 # 232 nodes / 8
-            self.info.nodes_bitmask = int.from_bytes(frame.data[3:32], 'little')
-            self.info.unknown_init_ver2 = frame.data[32]
-            self.info.unknown_init_cap2 = frame.data[33]
-
-
-            print("init_ver {}, init_cap {}".format(self.info.init_version, self.info.init_caps))
-            print("unknown, perhahps init_ver {}, init_cap {}".format(self.info.unknown_init_ver2, self.info.unknown_init_cap2))
-            print("nodes: {}".format(self.info.nodes_bitmask))
-            for i in range(0, 232):
-                is_node = self.info.nodes_bitmask & (1 << i) != 0
-                node_num = i+1
-                if is_node:
-                    print("Has node at {}".format(node_num))
-
-        elif frame.func == cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO:
-            node = Node()
-            node.generic_class = frame.data[4]
-            caps = frame.data[0]
-
-            node.is_listening = caps & 0x80 != 0
-            node.is_routing = caps & 0x40 != 0
-
-            # 00111000 is baud rate mask (0x38)
-            if caps & 0x38 == 0x10:
-                node.max_baud = 40000
-            else:
-                node.max_baud = 9600
-
-            # 00000111 is version mask
-            node.version = (caps & 0x07) + 1
-
-            security = frame.data[1]
-            # SecurityFlag_Security = 0x01
-            node.is_secure = security & 0x01 != 0
-
-            unknown = frame.data[2]
-            node.basic_class = frame.data[3]
-            node.generic_class = frame.data[4]
-            node.specific_class =  frame.data[5]
-
-            print("class: basic {}, generic {}, specific {}".format(node.basic_class, node.generic_class, node.specific_class))
-            print("is listening {}, is routing {}, is_secure {}, baud {}, version {}".format(node.is_listening, node.is_routing, node.is_secure, node.max_baud, node.version))
-            print("unknown {}, security {}".format(unknown, security))
-            # generic class == 0 ==> non-existant node.
-            print("node info returned {}, len {}".format(frame.data, len(frame.data)))
-
-        elif frame.func == cmd.FUNC_ID_ZW_REQUEST_NODE_INFO:
+        if frame.func == cmd.FUNC_ID_ZW_REQUEST_NODE_INFO:
             request_successful = frame.data[0] != 0
             assert request_successful
 
@@ -625,7 +707,7 @@ class FrameHandler:
                 print("additional REQUEST sent us with data {}".format(frame.data))
                 print("callback id {:#x}, err_code {}, un1 {}, un2 {:#x}".format(callback_id, err_code, unknown1, unknown2))
 
-        else:
+        elif not inc_packet:
             print("unknown frame to handle: {}".format(frame))
 
 
@@ -668,9 +750,6 @@ def oldstuff(protocol, remote):
     call_command(protocol, remote, cmd.FUNC_ID_SERIAL_API_GET_CAPABILITIES, bytearray(
         b'\x05\x06\x01\x15\x04\x00\x00\x01\xfe\x83\xff\x88\xcf\x1f\x00\x00\xfb\x9f}\xa0g\x00\x80\x80\x00\x80\x86\x00\x00\x00\xe8s\x00\x00\x0e\x00\x00@\x1a\x00'))
     call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_SUC_NODE_ID, bytearray(b'\x00'))
-    # Only do this if this is a bridge controller, i.e. library_type == 7
-    # test_frame(protocol, remote, cmd.FUNC_ID_ZW_GET_VIRTUAL_NODES, bytearray(b'\x21\x00\x01'))
-    # arg1: random length, MIN=1, MAX = 32, rounded up to nearest even number.
     call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_RANDOM, bytearray(b'\x01\x04\xca\xfe\xba\xbe'), bytes([4]))
     call_command(protocol, remote, cmd.FUNC_ID_SERIAL_API_GET_INIT_DATA, bytearray(
         b'\x05\x00\x1d\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x05\x00'))
@@ -680,14 +759,6 @@ def oldstuff(protocol, remote):
                  bytes([0]))
     call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO, bytearray(b'\x93\x16\x01\x02\x02\x01'),
                  bytes([1]))
-
-    for i in range(0, 232):
-        is_node = controller_info.nodes_bitmask & (1 << i) != 0
-        if is_node:
-            print("testing node at {}".format(i + 1))
-            expected = bytearray(b'\x00\x00\x00\x03\x00\x00') if remote else None
-            call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO, expected,
-                         bytes([i + 1]))
 
 DEFAULT_TRANSMIT_OPTIONS = 0x25
 
@@ -721,6 +792,8 @@ def main():
 
     protocol = controller.protocol
 
+    oldstuff(protocol, remote)
+
     call_command(protocol, remote, cmd.FUNC_ID_SERIAL_API_GET_INIT_DATA, bytearray(
         b'\x05\x00\x1d\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x05\x00'))
 
@@ -751,7 +824,6 @@ def main():
     # arg6: callback-id (start with 0x21)
     #call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), bytearray(b'\x01\x02\x00\x00\x11\x21'), Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'!\x01\x004')))
 
-    #oldstuff(protocol, remote)
 
     # 01 = SOF (Start Of Frame)
     # 08 = 8 bytes length for this frame

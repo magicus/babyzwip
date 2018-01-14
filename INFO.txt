@@ -186,3 +186,11 @@ FUNC_ID_APPLICATION_COMMAND_HANDLER - antar att det är den som prefixar alla pa
 first try: 0x05, second try: 0x25.
 open hab uses  .setTransmitOptions(TRANSMIT_OPTION_ACK | TRANSMIT_OPTION_AUTO_ROUTE | TRANSMIT_OPTION_EXPLORE);
 for all.
+
+sending transaction:
+send a send-request, status "send requested"
+get a send-response, status "pending execution", returns immediately. do not send anything else before this.
+... wait.
+get a send-request, status "send executed" -- either ok or failed. this returns asynchronously.
+
+

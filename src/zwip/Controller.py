@@ -95,11 +95,220 @@ commands = {
     'FUNC_ID_PROMISCUOUS_APPLICATION_COMMAND_HANDLER': 0xd1
 }
 
+command_classes = {
+    'ALARM': 0x71,
+    'ALARM_V2': 0x71,
+    'NOTIFICATION_V3': 0x71,
+    'NOTIFICATION_V4': 0x71,
+    'NOTIFICATION_V5': 0x71,
+    'NOTIFICATION_V6': 0x71,
+    'NOTIFICATION_V7': 0x71,
+    'NOTIFICATION_V8': 0x71,
+    'APPLICATION_STATUS': 0x22,
+    'ASSOCIATION_COMMAND_CONFIGURATION': 0x9B,
+    'ASSOCIATION': 0x85,
+    'ASSOCIATION_V2': 0x85,
+    'AV_CONTENT_DIRECTORY_MD': 0x95,
+    'AV_CONTENT_SEARCH_MD': 0x97,
+    'AV_RENDERER_STATUS': 0x96,
+    'AV_TAGGING_MD': 0x99,
+    'BASIC_TARIFF_INFO': 0x36,
+    'BASIC_WINDOW_COVERING': 0x50,
+    'BASIC': 0x20,
+    'BASIC_V2': 0x20,
+    'BATTERY': 0x80,
+    'CHIMNEY_FAN': 0x2A,
+    'CLIMATE_CONTROL_SCHEDULE': 0x46,
+    'CLOCK': 0x81,
+    'CONFIGURATION': 0x70,
+    'CONFIGURATION_V2': 0x70,
+    'CONFIGURATION_V3': 0x70,
+    'CONFIGURATION_V4': 0x70,
+    'CONTROLLER_REPLICATION': 0x21,
+    'CRC_16_ENCAP': 0x56,
+    'DCP_CONFIG': 0x3A,
+    'DCP_MONITOR': 0x3B,
+    'DOOR_LOCK_LOGGING': 0x4C,
+    'DOOR_LOCK': 0x62,
+    'DOOR_LOCK_V2': 0x62,
+    'DOOR_LOCK_V3': 0x62,
+    'ENERGY_PRODUCTION': 0x90,
+    'FIRMWARE_UPDATE_MD': 0x7A,
+    'FIRMWARE_UPDATE_MD_V2': 0x7A,
+    'FIRMWARE_UPDATE_MD_V3': 0x7A,
+    'FIRMWARE_UPDATE_MD_V4': 0x7A,
+    'FIRMWARE_UPDATE_MD_V5': 0x7A,
+    'GEOGRAPHIC_LOCATION': 0x8C,
+    'GROUPING_NAME': 0x7B,
+    'HAIL': 0x82,
+    'HRV_CONTROL': 0x39,
+    'HRV_STATUS': 0x37,
+    'INDICATOR': 0x87,
+    'INDICATOR_V2': 0x87,
+    'IP_CONFIGURATION': 0x9A,
+    'LANGUAGE': 0x89,
+    'LOCK': 0x76,
+    'MANUFACTURER_PROPRIETARY': 0x91,
+    'MANUFACTURER_SPECIFIC': 0x72,
+    'MANUFACTURER_SPECIFIC_V2': 0x72,
+    'MARK': 0xEF,
+    'METER_PULSE': 0x35,
+    'METER_TBL_CONFIG': 0x3C,
+    'METER_TBL_MONITOR': 0x3D,
+    'METER_TBL_MONITOR_V2': 0x3D,
+    'METER_TBL_PUSH': 0x3E,
+    'METER': 0x32,
+    'METER_V2': 0x32,
+    'METER_V3': 0x32,
+    'METER_V4': 0x32,
+    'MTP_WINDOW_COVERING': 0x51,
+    'MULTI_CHANNEL_ASSOCIATION_V2': 0x8E,
+    'MULTI_CHANNEL_ASSOCIATION_V3': 0x8E,
+    'MULTI_CHANNEL_V2': 0x60,
+    'MULTI_CHANNEL_V3': 0x60,
+    'MULTI_CHANNEL_V4': 0x60,
+    'MULTI_CMD': 0x8F,
+    'MULTI_INSTANCE_ASSOCIATION': 0x8E,
+    'MULTI_INSTANCE': 0x60,
+    'NETWORK_MANAGEMENT_PROXY': 0x52,
+    'NETWORK_MANAGEMENT_PROXY_V2': 0x52,
+    'NETWORK_MANAGEMENT_BASIC': 0x4D,
+    'NETWORK_MANAGEMENT_BASIC_V2': 0x4D,
+    'NETWORK_MANAGEMENT_INCLUSION': 0x34,
+    'NETWORK_MANAGEMENT_INCLUSION_V2': 0x34,
+    'NO_OPERATION': 0x00,
+    'NODE_NAMING': 0x77,
+    'NON_INTEROPERABLE': 0xF0,
+    'POWERLEVEL': 0x73,
+    'PREPAYMENT_ENCAPSULATION': 0x41,
+    'PREPAYMENT': 0x3F,
+    'PROPRIETARY': 0x88,
+    'PROTECTION': 0x75,
+    'PROTECTION_V2': 0x75,
+    'RATE_TBL_CONFIG': 0x48,
+    'RATE_TBL_MONITOR': 0x49,
+    'REMOTE_ASSOCIATION_ACTIVATE': 0x7C,
+    'REMOTE_ASSOCIATION': 0x7D,
+    'SCENE_ACTIVATION': 0x2B,
+    'SCENE_ACTUATOR_CONF': 0x2C,
+    'SCENE_CONTROLLER_CONF': 0x2D,
+    'SCHEDULE_ENTRY_LOCK': 0x4E,
+    'SCHEDULE_ENTRY_LOCK_V2': 0x4E,
+    'SCHEDULE_ENTRY_LOCK_V3': 0x4E,
+    'SCREEN_ATTRIBUTES': 0x93,
+    'SCREEN_ATTRIBUTES_V2': 0x93,
+    'SCREEN_MD': 0x92,
+    'SCREEN_MD_V2': 0x92,
+    'SECURITY_PANEL_MODE': 0x24,
+    'SECURITY_PANEL_ZONE_SENSOR': 0x2F,
+    'SECURITY_PANEL_ZONE': 0x2E,
+    'SECURITY': 0x98,
+    'SENSOR_ALARM': 0x9C,
+    'SENSOR_BINARY': 0x30,
+    'SENSOR_BINARY_V2': 0x30,
+    'SENSOR_CONFIGURATION': 0x9E,
+    'SENSOR_MULTILEVEL': 0x31,
+    'SENSOR_MULTILEVEL_V2': 0x31,
+    'SENSOR_MULTILEVEL_V3': 0x31,
+    'SENSOR_MULTILEVEL_V4': 0x31,
+    'SENSOR_MULTILEVEL_V5': 0x31,
+    'SENSOR_MULTILEVEL_V6': 0x31,
+    'SENSOR_MULTILEVEL_V7': 0x31,
+    'SENSOR_MULTILEVEL_V8': 0x31,
+    'SENSOR_MULTILEVEL_V9': 0x31,
+    'SENSOR_MULTILEVEL_V10': 0x31,
+    'SILENCE_ALARM': 0x9D,
+    'SIMPLE_AV_CONTROL': 0x94,
+    'SWITCH_ALL': 0x27,
+    'SWITCH_BINARY': 0x25,
+    'SWITCH_BINARY_V2': 0x25,
+    'SWITCH_MULTILEVEL': 0x26,
+    'SWITCH_MULTILEVEL_V2': 0x26,
+    'SWITCH_MULTILEVEL_V3': 0x26,
+    'SWITCH_MULTILEVEL_V4': 0x26,
+    'SWITCH_TOGGLE_BINARY': 0x28,
+    'SWITCH_TOGGLE_MULTILEVEL': 0x29,
+    'TARIFF_CONFIG': 0x4A,
+    'TARIFF_TBL_MONITOR': 0x4B,
+    'THERMOSTAT_FAN_MODE': 0x44,
+    'THERMOSTAT_FAN_MODE_V2': 0x44,
+    'THERMOSTAT_FAN_MODE_V3': 0x44,
+    'THERMOSTAT_FAN_MODE_V4': 0x44,
+    'THERMOSTAT_FAN_STATE': 0x45,
+    'THERMOSTAT_FAN_STATE_V2': 0x45,
+    'THERMOSTAT_HEATING': 0x38,
+    'THERMOSTAT_MODE': 0x40,
+    'THERMOSTAT_MODE_V2': 0x40,
+    'THERMOSTAT_MODE_V3': 0x40,
+    'THERMOSTAT_OPERATING_STATE': 0x42,
+    'THERMOSTAT_OPERATING_STATE_V2': 0x42,
+    'THERMOSTAT_SETBACK': 0x47,
+    'THERMOSTAT_SETPOINT': 0x43,
+    'THERMOSTAT_SETPOINT_V2': 0x43,
+    'THERMOSTAT_SETPOINT_V3': 0x43,
+    'TIME_PARAMETERS': 0x8B,
+    'TIME': 0x8A,
+    'TIME_V2': 0x8A,
+    'TRANSPORT_SERVICE_V2': 0x55,
+    'TRANSPORT_SERVICE': 0x55,
+    'USER_CODE': 0x63,
+    'VERSION': 0x86,
+    'VERSION_V2': 0x86,
+    'WAKE_UP': 0x84,
+    'WAKE_UP_V2': 0x84,
+    'ZIP_6LOWPAN': 0x4F,
+    'ZIP': 0x23,
+    'ZIP_V2': 0x23,
+    'ZIP_V3': 0x23,
+    'APPLICATION_CAPABILITY': 0x57,
+    'SWITCH_COLOR': 0x33,
+    'SWITCH_COLOR_V2': 0x33,
+    'SWITCH_COLOR_V3': 0x33,
+    'SCHEDULE': 0x53,
+    'SCHEDULE_V2': 0x53,
+    'SCHEDULE_V3': 0x53,
+    'NETWORK_MANAGEMENT_PRIMARY': 0x54,
+    'ZIP_ND': 0x58,
+    'ASSOCIATION_GRP_INFO': 0x59,
+    'ASSOCIATION_GRP_INFO_V2': 0x59,
+    'ASSOCIATION_GRP_INFO_V3': 0x59,
+    'DEVICE_RESET_LOCALLY': 0x5A,
+    'CENTRAL_SCENE': 0x5B,
+    'CENTRAL_SCENE_V2': 0x5B,
+    'CENTRAL_SCENE_V3': 0x5B,
+    'IP_ASSOCIATION': 0x5C,
+    'ANTITHEFT': 0x5D,
+    'ANTITHEFT_V2': 0x5D,
+    'ZWAVEPLUS_INFO': 0x5E,
+    'ZWAVEPLUS_INFO_V2': 0x5E,
+    'ZIP_GATEWAY': 0x5F,
+    'ZIP_PORTAL': 0x61,
+    'DMX': 0x65,
+    'BARRIER_OPERATOR': 0x66,
+    'NETWORK_MANAGEMENT_INSTALLATION_MAINTENANCE': 0x67,
+    'ZIP_NAMING': 0x68,
+    'MAILBOX': 0x69,
+    'WINDOW_COVERING': 0x6A,
+    'SECURITY_2': 0x9F,
+    'IRRIGATION': 0x6B,
+    'SUPERVISION': 0x6C,
+    'HUMIDITY_CONTROL_SETPOINT': 0x64,
+    'HUMIDITY_CONTROL_MODE': 0x6D,
+    'HUMIDITY_CONTROL_OPERATING_STATE': 0x6E,
+    'ENTRY_CONTROL': 0x6F,
+    'INCLUSION_CONTROLLER': 0x74,
+}
+
 cmd = Bunch(commands)
 
 def get_command_name(cmd_num):
     for cmd in commands:
         if commands.get(cmd) == cmd_num:
+            return cmd
+
+def get_command_class_name(cmd_class):
+    for cmd in command_classes:
+        if command_classes.get(cmd) == cmd_class:
             return cmd
 
 def hex_string(obj):
@@ -432,6 +641,24 @@ class ControllerCapabilitiesBitfield(ctypes.Union):
 class Node:
     pass
 
+class ZWavePacket(object):
+    def __init__(self, node_id, command_class, command_num, data=None):
+        self.node_id = node_id
+        self.command_class = command_class
+        self.command_num = command_num
+        self.data = data if data else []
+
+
+    def __str__(self):
+        return "<Packet @{} {}({:#x})/{:#x} [{}]>".format(self.node_id, get_command_class_name(self.command_class), self.command_class, self.command_num, hex_string(self.data))
+
+    def as_bytes(self):
+        # Length includes command_class, command_num and data, but not node_id.
+        length = 2 + len(self.data)
+        packet_bytes = bytearray([self.node_id, length, self.command_class, self.command_num] + self.data)
+        return bytes(packet_bytes)
+
+
 controller_info = ControllerInfo()
 class FrameHandler:
     def __init__(self):
@@ -620,6 +847,11 @@ class FrameHandler:
             cmd_num = frame.data[4]
             cmd_data = frame.data[5:]
 
+            if msg_len != len(cmd_data) + 2:
+                print("ERROR: incorrect len: {}, should be {}".format(msg_len, len(cmd_data) + 2))
+
+            packet = ZWavePacket(node_id, cmd_class, cmd_num, cmd_data)
+
             print("got app BACK: status {:#x}, node {}, len {}, class {:#x}, cmd {:#x}".format(status, node_id, msg_len, cmd_class, cmd_num))
             print("app BACK cmd data: type {} len {}".format(type(cmd_data), len(cmd_data)))
             print("app BACK cmd data: content {} ".format(cmd_data))
@@ -627,7 +859,7 @@ class FrameHandler:
                 print("got a value")
             else:
                 print("no value")
-            print("got FUNC_ID_APPLICATION_COMMAND_HANDLER: {}".format(frame.data))
+            print("got FUNC_ID_APPLICATION_COMMAND_HANDLER: status {}, packet: {}".format(status, packet))
 
         elif frame.func == cmd.FUNC_ID_ZW_SEND_DATA:
             if frame.frame_type == RESPONSE:
@@ -713,7 +945,15 @@ def oldstuff(protocol, remote):
             call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO, expected,
                          bytes([i + 1]))
 
+DEFAULT_TRANSMIT_OPTIONS = 0x25
 
+def create_send_payload(zwpacket, callback_id, transmit_options=DEFAULT_TRANSMIT_OPTIONS):
+    print("{} type {}".format(bytes([callback_id]), type(bytes([callback_id]))))
+    apa = bytes([callback_id]) + bytes([transmit_options])
+    print("apa", apa, "type", type(apa))
+    payload_bytes = zwpacket.as_bytes() + bytes([transmit_options, callback_id])
+    print("type {} val {}".format(type(payload_bytes), payload_bytes))
+    return payload_bytes
 
 def main():
     sender = FakeSender()
@@ -747,6 +987,17 @@ def main():
     call_command(protocol, remote, cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, bytearray(b'\x01'), bytes([2]), extra_frame)
 
     call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_VERSION, bytearray(b'Z-Wave 4.05\x00\x01'))
+
+    # noop/noop
+    # arg1: node
+    # arg2: 2 = len of package (cmdclass + command)
+    # ---
+    # arg3: cmd class id, 0x00 == NOOP.
+    # arg4: 0 == NOOP
+    # ---
+    # arg5: transmit options, default  TRANSMIT_OPTION_ACK | TRANSMIT_OPTION_NO_ROUTE = 0x11
+    # arg6: callback-id (start with 0x21)
+    #call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), bytearray(b'\x01\x02\x00\x00\x11\x21'), Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'!\x01\x004')))
 
     #oldstuff(protocol, remote)
 
@@ -816,16 +1067,6 @@ def main():
     # define TRANSMIT_OPTION_NO_ROUTE 						0x10
     # define TRANSMIT_OPTION_EXPLORE							0x20
 
-    # noop/noop
-    # arg1: node
-    # arg2: 2 = len of package (cmdclass + command)
-    # ---
-    # arg3: cmd class id, 0x00 == NOOP.
-    # arg4: 0 == NOOP
-    # ---
-    # arg5: transmit options, default  TRANSMIT_OPTION_ACK | TRANSMIT_OPTION_NO_ROUTE = 0x11
-    # arg6: callback-id (start with 0x21)
-#    call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), bytearray(b'\x01\x02\x00\x00\x11\x21'), Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'!\x01\x004')))
 
     # basic/get
     # cmdclass COMMAND_CLASS_BASIC = 0x20
@@ -852,9 +1093,16 @@ def main():
     #extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'#\x01\x00"'))
     #call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), bytearray(b'\x01\x02\x72\x04\x11\x23'), extra_frame)
 
-
+    extra_frame = Frame(REQUEST, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x25\x01\x00\x56'))
+    packet = ZWavePacket(2, 0x72, 0x04)
+    send_payload = create_send_payload(packet, 0x23)
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), send_payload,
+                 extra_frame)
     import time
-    time.sleep(5)
+    time.sleep(10)
+    send_payload = create_send_payload(packet, 0x24)
+    call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), send_payload,
+                 extra_frame)
     call_command(protocol, remote, cmd.FUNC_ID_ZW_GET_VERSION, bytearray(b'Z-Wave 4.05\x00\x01'))
 
     frame = protocol.get_frame(block=False)
@@ -863,6 +1111,9 @@ def main():
         print("final RECV:", frame)
         handler.handle_incoming_frame(frame)
         time.sleep(1)
+
+        send_payload = create_send_payload(packet, 0x25)
+        call_command(protocol, remote, cmd.FUNC_ID_ZW_SEND_DATA, bytearray(b'\x01'), send_payload, extra_frame)
         frame = protocol.get_frame(block=False)
 
     controller.close()

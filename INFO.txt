@@ -285,3 +285,11 @@ not needed:
             assert random_len == len(self.info.random)
 
             print("Random returned {}, unkn1 {}".format(self.info.random, unknown1))
+
+from enum import Enum
+
+class ExpectedReply(Enum):
+    none = 1
+    response = 2
+    type_request_callback = 3 # same type or other type
+    id_request_callback = 4

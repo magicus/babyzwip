@@ -124,7 +124,7 @@ class SimplePacket(SerialPacket):
     @classmethod
     def parse(cls, frame_byte):
         try:
-            if not frame_byte in frame_type_str:
+            if frame_byte not in frame_type_str:
                 raise InvalidFrame('No valid frame type: {}'.format(frame_byte))
 
             frame_type = frame_byte
@@ -163,7 +163,8 @@ class Frame(SerialPacket):
 
     def __str__(self):
         type_str = "REQUEST" if self.frame_type == 0 else "RESPONSE"
-        return "<Frame[{}:{}({:#x})]: {}>".format(type_str, get_command_name(self.func), self.func, hex_string(bytearray(self.data)))
+        return "<Frame[{}:{}({:#x})]: {}>".format(type_str, get_command_name(self.func), self.func,
+                                                  hex_string(bytearray(self.data)))
 
     @classmethod
     def parse(cls, frame_bytes):
@@ -179,10 +180,10 @@ class Frame(SerialPacket):
                 raise InvalidFrame('Checksum incorrect')
 
             frame_type = frame_bytes[2]
-            function = frame_bytes[3]
+            func = frame_bytes[3]
             data = bytes(frame_bytes[4:-1])
-            return cls(frame_type, function, data)
-        except IndexError as e:
+            return cls(frame_type, func, data)
+        except IndexError:
             raise InvalidFrame('Frame too short')
 
     @staticmethod
@@ -216,9 +217,12 @@ def locate_usb_controller():
 
 
 class FakeProtocolHandler(socketserver.BaseRequestHandler):
+    data = None
+
     class FakeTransport:
         def __init__(self, request):
             self.request = request
+            self.data = None
 
         def write(self, data):
             self.request.sendall(data)
@@ -242,23 +246,25 @@ class ThreadedTCPServer(socketserver.TCPServer, socketserver.ThreadingMixIn):
     stop_server = False
     protocol = None
 
-    def __init__(self, server_address, RequestHandlerClass, ProtocolType):
-        super().__init__(server_address, RequestHandlerClass)
+    def __init__(self, server_address, request_handler_class, protocol_type):
+        super().__init__(server_address, request_handler_class)
         self.daemon_threads = True
-        self.protocol = ProtocolType()
+        self.protocol = protocol_type()
 
 
 class FakeSender:
     protocol = None
+    server = None
+    port = None
 
     HOST, PORT = "localhost", 10111
 
-    def open(self, ProtocolType=FrameProtocol):
+    def open(self, protocol_type=FrameProtocol):
         port = self.PORT
         self.server = None
         while not self.server:
             try:
-                self.server = ThreadedTCPServer((self.HOST, port), FakeProtocolHandler, ProtocolType)
+                self.server = ThreadedTCPServer((self.HOST, port), FakeProtocolHandler, protocol_type)
             except OSError as e:
                 if port < self.PORT + 10:
                     # Retry some times with next higher port
@@ -284,13 +290,15 @@ class FakeSender:
 
 class SerialController:
     protocol = None
+    transport = None
+    serial_port = None
 
-    def open(self, port, ProtocolType=FrameProtocol):
-        self.serialport = serial.serial_for_url(port, baudrate=115200, timeout=3)
-        t = serial.threaded.ReaderThread(self.serialport, ProtocolType)
+    def open(self, port, protocol_type=FrameProtocol):
+        self.serial_port = serial.serial_for_url(port, baudrate=115200, timeout=3)
+        t = serial.threaded.ReaderThread(self.serial_port, protocol_type)
         t.start()
         self.transport, self.protocol = t.connect()
 
     def close(self):
         self.transport.close()
-        self.serialport.close()
+        self.serial_port.close()

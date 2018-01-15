@@ -19,6 +19,7 @@ class Bunch(object):
     def __init__(self, adict):
         self.__dict__.update(adict)
 
+
 node_update_states = {
     'UPDATE_STATE_SUC_ID': 0x10,
     'UPDATE_STATE_DELETE_DONE': 0x20,
@@ -291,12 +292,14 @@ command_classes = {
 
 cmd = Bunch(commands)
 
+
 def get_command_name(cmd_num):
-    for cmd in commands:
-        if commands.get(cmd) == cmd_num:
-            return cmd
+    for command in commands:
+        if commands.get(command) == cmd_num:
+            return command
+
 
 def get_command_class_name(cmd_class):
-    for cmd in command_classes:
-        if command_classes.get(cmd) == cmd_class:
-            return cmd
+    for command in command_classes:
+        if command_classes.get(command) == cmd_class:
+            return command

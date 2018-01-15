@@ -24,6 +24,9 @@ class ZWavePacket(object):
 
 
 class IncomingSerialPacket(object):
+    def as_bytes(self):
+        raise NotImplementedError()
+
     @classmethod
     def from_frame(cls, frame):
         if frame.frame_type == RESPONSE:
@@ -96,6 +99,9 @@ class GetControllerIdReplyPacket(IncomingSerialPacket):
 
     def __repr__(self):
         return "<GetControllerIdReplyPacket(home_id={}, node_id={})>".format(self.home_id, self.node_id)
+
+    def as_bytes(self):
+        return self.home_id.to_bytes(4, 'big') + bytes([self.node_id])
 
     @classmethod
     def from_frame(cls, frame):

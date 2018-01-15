@@ -3,6 +3,7 @@ import ctypes
 from zwip.constants import *
 from zwip import hex_string
 
+
 class ZWavePacket(object):
     def __init__(self, node_id, command_class, command_num, data=None):
         self.node_id = node_id
@@ -10,9 +11,10 @@ class ZWavePacket(object):
         self.command_num = command_num
         self.data = data if data else []
 
-
     def __str__(self):
-        return "<Packet @{} {}({:#x})/{:#x} [{}]>".format(self.node_id, get_command_class_name(self.command_class), self.command_class, self.command_num, hex_string(self.data))
+        return "<Packet @{} {}({:#x})/{:#x} [{}]>".format(
+            self.node_id, get_command_class_name(self.command_class), self.command_class, self.command_num,
+            hex_string(self.data))
 
     def as_bytes(self):
         # Length includes command_class, command_num and data, but not node_id.
@@ -20,11 +22,8 @@ class ZWavePacket(object):
         packet_bytes = bytearray([self.node_id, length, self.command_class, self.command_num] + self.data)
         return bytes(packet_bytes)
 
-class IncomingSerialPacket(object):
-    def __init__(self, type, func):
-        self.type = type
-        self.func = func
 
+class IncomingSerialPacket(object):
     @classmethod
     def from_frame(cls, frame):
         if frame.frame_type == RESPONSE:
@@ -42,7 +41,8 @@ class IncomingSerialPacket(object):
                 return GetInitDataReplyPacket.from_frame(frame)
             elif frame.func == cmd.FUNC_ID_ZW_GET_NODE_PROTOCOL_INFO:
                 return GetNodeProtocolInfoReplyPacket.from_frame(frame)
-            elif frame.func in [cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, cmd.FUNC_ID_ZW_SEND_NODE_INFORMATION, cmd.FUNC_ID_ZW_SEND_DATA, cmd.FUNC_ID_ZW_REQUEST_NETWORK_UPDATE]:
+            elif frame.func in [cmd.FUNC_ID_ZW_REQUEST_NODE_INFO, cmd.FUNC_ID_ZW_SEND_NODE_INFORMATION,
+                                cmd.FUNC_ID_ZW_SEND_DATA, cmd.FUNC_ID_ZW_REQUEST_NETWORK_UPDATE]:
                 return TransactionStartedReplyPacket.from_frame(frame)
         else:
             if frame.func == cmd.FUNC_ID_ZW_SEND_DATA:
@@ -56,6 +56,7 @@ class IncomingSerialPacket(object):
 
         print("WARNING: UNHANDLED RESPONSE: {}".format(frame))
         return None
+
 
 class GetVersionReplyPacket(IncomingSerialPacket):
     LibraryTypes = [
@@ -76,7 +77,8 @@ class GetVersionReplyPacket(IncomingSerialPacket):
         print("Created:", self)
 
     def __repr__(self):
-        return "<GetVersionReplyPacket(library_version='{}', library_type={})>".format(self.library_version, self.library_type)
+        return "<GetVersionReplyPacket(library_version='{}', library_type={})>".format(
+            self.library_version, self.library_type)
 
     @classmethod
     def from_frame(cls, frame):
@@ -84,6 +86,7 @@ class GetVersionReplyPacket(IncomingSerialPacket):
         library_type = frame.data[12]
 
         return cls(library_version, library_type)
+
 
 class GetControllerIdReplyPacket(IncomingSerialPacket):
     def __init__(self, home_id, node_id):
@@ -115,10 +118,12 @@ class PacketBits2(ctypes.LittleEndianStructure):
         ("unknown3", ctypes.c_ubyte, 1),
     ]
 
+
 class ControllerCapabilitiesBitfield2(ctypes.Union):
     _anonymous_ = ("bits",)
     _fields_ = [("bits", PacketBits2),
                 ("binary_data", ctypes.c_ubyte)]
+
 
 class GetControllerCapabilitiesReplyPacket(IncomingSerialPacket):
     def __init__(self, secondary, on_other_network, sis, real_primary, suc):
@@ -139,10 +144,12 @@ class GetControllerCapabilitiesReplyPacket(IncomingSerialPacket):
         packet.binary_data = frame.data[0]
 
         return cls(packet.bits.secondary, packet.bits.on_other_network, packet.bits.sis, packet.bits.real_primary,
-              packet.bits.suc)
+                   packet.bits.suc)
+
 
 class GetSerialApiCapabilitiesReplyPacket(IncomingSerialPacket):
-    def __init__(self, serial_version_major, serial_version_minor, manufacturer_id, product_type, product_id, serial_api_funcs_bitmask):
+    def __init__(self, serial_version_major, serial_version_minor, manufacturer_id, product_type, product_id,
+                 serial_api_funcs_bitmask):
         self.serial_version_major = serial_version_major
         self.serial_version_minor = serial_version_minor
         self.manufacturer_id = manufacturer_id
@@ -150,11 +157,12 @@ class GetSerialApiCapabilitiesReplyPacket(IncomingSerialPacket):
         self.product_id = product_id
         self.serial_api_funcs_bitmask = serial_api_funcs_bitmask
         print("Created:", self)
-        #self.print_it()
+        # self.print_it()
 
     def __repr__(self):
         return "<GetSerialApiCapabilitiesReplyPacket(serial_version_major={}, serial_version_minor={}, manufacturer_id={:#06x}, product_type={:#06x}, product_id={:#06x}, serial_api_funcs_bitmask={:#x})>".format(
-            self.serial_version_major, self.serial_version_minor, self.manufacturer_id, self.product_type, self.product_id, self.serial_api_funcs_bitmask)
+            self.serial_version_major, self.serial_version_minor, self.manufacturer_id, self.product_type,
+            self.product_id, self.serial_api_funcs_bitmask)
 
     def print_it(self):
         serial_version = "{}.{}".format(self.serial_version_major, self.serial_version_minor)
@@ -186,7 +194,9 @@ class GetSerialApiCapabilitiesReplyPacket(IncomingSerialPacket):
 
         serial_api_funcs_bitmask = int.from_bytes(frame.data[8:40], 'little')
 
-        return cls(serial_version_major, serial_version_minor, manufacturer_id, product_type, product_id, serial_api_funcs_bitmask)
+        return cls(serial_version_major, serial_version_minor, manufacturer_id, product_type, product_id,
+                   serial_api_funcs_bitmask)
+
 
 class GetSucNodeIdReplyPacket(IncomingSerialPacket):
     def __init__(self, suc_node_id):
@@ -201,6 +211,7 @@ class GetSucNodeIdReplyPacket(IncomingSerialPacket):
         suc_node_id = frame.data[0]
 
         return cls(suc_node_id)
+
 
 class GetInitDataReplyPacket(IncomingSerialPacket):
     def __init__(self, init_version, init_caps, nodes_bitmask):
@@ -233,13 +244,15 @@ class GetInitDataReplyPacket(IncomingSerialPacket):
         unknown_init_ver2 = frame.data[32]
         unknown_init_cap2 = frame.data[33]
 
-        print("GetInitDataReplyPacket unknown, perhahps init_ver {}, init_cap {}".format(unknown_init_ver2,
-                                                                  unknown_init_cap2))
+        print("GetInitDataReplyPacket unknown, perhaps init_ver {}, init_cap {}".format(
+            unknown_init_ver2, unknown_init_cap2))
 
         return cls(init_version, init_caps, nodes_bitmask)
 
+
 class GetNodeProtocolInfoReplyPacket(IncomingSerialPacket):
-    def __init__(self, basic_class, generic_class, specific_class, version, is_listening, is_routing, is_secure, max_baud):
+    def __init__(self, basic_class, generic_class, specific_class, version, is_listening, is_routing, is_secure,
+                 max_baud):
         self.basic_class = basic_class
         self.generic_class = generic_class
         self.specific_class = specific_class
@@ -252,18 +265,19 @@ class GetNodeProtocolInfoReplyPacket(IncomingSerialPacket):
 
     def __repr__(self):
         return "<GetNodeProtocolInfoReplyPacket(basic_class={:#04x}, generic_class={:#04x}, specific_class={:#04x}, version={}, is_listening={}, is_routing={}, is_secure={}, max_baud={})>".format(
-            self.basic_class, self.generic_class, self.specific_class, self.version, self.is_listening, self.is_routing, self.is_secure, self.max_baud)
+            self.basic_class, self.generic_class, self.specific_class, self.version, self.is_listening,
+            self.is_routing, self.is_secure, self.max_baud)
 
     @classmethod
     def from_frame(cls, frame):
         caps = frame.data[0]
-        unknown = frame.data[2]
         security = frame.data[1]
+        unknown = frame.data[2]
         basic_class = frame.data[3]
         generic_class = frame.data[4]
         specific_class = frame.data[5]
 
-        # NOTE: generic class == 0 ==> non-existant node.
+        # NOTE: generic class == 0 ==> non-existent node.
 
         is_listening = caps & 0x80 != 0
         is_routing = caps & 0x40 != 0
@@ -285,6 +299,7 @@ class GetNodeProtocolInfoReplyPacket(IncomingSerialPacket):
 
         return cls(basic_class, generic_class, specific_class, version, is_listening, is_routing, is_secure, max_baud)
 
+
 class TransactionStartedReplyPacket(IncomingSerialPacket):
     def __init__(self, func, request_successful):
         self.func = func
@@ -292,13 +307,15 @@ class TransactionStartedReplyPacket(IncomingSerialPacket):
         print("Created:", self)
 
     def __repr__(self):
-        return "<TransactionStartedReplyPacket(func={:#0x}, request_successful={})>".format(self.func, self.request_successful)
+        return "<TransactionStartedReplyPacket(func={:#0x}, request_successful={})>".format(
+            self.func, self.request_successful)
 
     @classmethod
     def from_frame(cls, frame):
         func = frame.func
         request_successful = frame.data[0] != 0
         return cls(func, request_successful)
+
 
 class AsyncSendDataPacket(IncomingSerialPacket):
     def __init__(self, callback_id, err_code):
@@ -325,6 +342,7 @@ class AsyncSendDataPacket(IncomingSerialPacket):
         print("AsyncSendDataPacket unknown1 {:#x}, unknown2 {:#x}".format(unknown1, unknown2))
         return cls(callback_id, err_code)
 
+
 class AsyncSendNodeInformationPacket(IncomingSerialPacket):
     def __init__(self, callback_id, err_code):
         self.callback_id = callback_id
@@ -347,6 +365,7 @@ class AsyncSendNodeInformationPacket(IncomingSerialPacket):
 
         return cls(callback_id, err_code)
 
+
 class AsyncUpdateNodeInformationPacket(IncomingSerialPacket):
     def __init__(self, status, node_id, basic_class, generic_class, specific_class, cmd_classes):
         self.status = status
@@ -360,15 +379,17 @@ class AsyncUpdateNodeInformationPacket(IncomingSerialPacket):
 
     def __repr__(self):
         return "<AsyncUpdateNodeInformationPacket(status={:#04x}, node_id={}, basic_class={:#04x}, generic_class={:#04x}, specific_class={:#04x}, cmd_classes={})>".format(
-            self.status, self.node_id, self.basic_class, self.generic_class, self.specific_class, hex_string(self.cmd_classes))
+            self.status, self.node_id, self.basic_class, self.generic_class, self.specific_class,
+            hex_string(self.cmd_classes))
 
     def print_it(self):
-        state_name = "UNKNOWN_STATE"
+        status_name = "UNKNOWN_STATE"
         for name, status in node_update_states.items():
             if status == self.status:
-                state_name = name
+                status_name = name
 
-        print("AsyncUpdateNodeInformationPacket status: {}({:#0x}, node {})".format(name, self.status, self.node_id))
+        print("AsyncUpdateNodeInformationPacket status: {}({:#0x}, node {})".format(
+            status_name, self.status, self.node_id))
 
     @classmethod
     def from_frame(cls, frame):
@@ -392,6 +413,7 @@ class AsyncUpdateNodeInformationPacket(IncomingSerialPacket):
             cmd_classes = None
 
         return cls(status, node_id, basic_class, generic_class, specific_class, cmd_classes)
+
 
 class AsyncUpdateReceivedDataPacket(IncomingSerialPacket):
     def __init__(self, status, node_id, packet):
@@ -418,6 +440,6 @@ class AsyncUpdateReceivedDataPacket(IncomingSerialPacket):
             cmd_data = frame.data[5:]
             packet = ZWavePacket(node_id, cmd_class, cmd_num, cmd_data)
         else:
-            packet= None
+            packet = None
 
         return cls(status, node_id, packet)

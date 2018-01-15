@@ -187,7 +187,7 @@ class Frame(SerialPacket):
 
     @staticmethod
     def calc_checksum(frame_bytes):
-        # Update checksum
+        # Update checksum (LRC using XOR)
         checksum = 0xFF
         for b in frame_bytes:
             checksum ^= b

@@ -56,7 +56,7 @@ class RawFrameProtocol(serial.threaded.Protocol):
                 # FIXME: timeout?
             elif self.state == self.State.WantData:
                 self.packet.append(byte)
-                if len(self.packet) == self.wanted_length+2:
+                if len(self.packet) == self.wanted_length + 2:
                     self.handle_packet(self.packet)
 
                     self.state = self.State.Open
@@ -172,7 +172,7 @@ class Frame(SerialPacket):
             if frame_bytes[0] != SOF:
                 raise InvalidFrame('No SOF at beginning')
 
-            if frame_bytes[1] != len(frame_bytes)-2:
+            if frame_bytes[1] != len(frame_bytes) - 2:
                 raise InvalidFrame('Length mismatch')
 
             checksum = cls.calc_checksum(frame_bytes[1:])
@@ -198,7 +198,7 @@ class Frame(SerialPacket):
         # The first 0 will be replaced by length, the last 0 with checksum
         frame_bytes = bytearray([SOF, 0, self.frame_type, self.func] + list(self.data) + [0])
         # Update length (Don't count SOF and length byte)
-        frame_bytes[1] = len(frame_bytes)-2
+        frame_bytes[1] = len(frame_bytes) - 2
         # Update checksum (including length but excluding SOF)
         frame_bytes[-1] = self.calc_checksum(frame_bytes[1:])
         return bytes(frame_bytes)

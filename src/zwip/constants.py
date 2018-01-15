@@ -30,7 +30,6 @@ node_update_states = {
     'UPDATE_STATE_NODE_INFO_RECEIVED': 0x84
 }
 
-
 commands = {
     'FUNC_ID_SERIAL_API_GET_INIT_DATA': 0x02,
     'FUNC_ID_SERIAL_API_APPL_NODE_INFORMATION': 0x03,
